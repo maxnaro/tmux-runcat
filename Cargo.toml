@@ -1,0 +1,14 @@
+[package]
+name = "tmux-runcat"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.89"
+description = "A tmux cat that runs with your typing and sleeps when idle"
+publish = false
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[profile.release]
+lto = "thin"
+strip = true
