@@ -49,6 +49,7 @@ pub fn run(plugin: &Path, explicit: Option<(&OsStr, &OsStr)>) -> io::Result<()> 
         ("@runcat-idle", "2"),
         ("@runcat-min-fps", "3"),
         ("@runcat-max-fps", "12"),
+        ("@runcat-size", "medium"),
     ] {
         if !tmux.output(["show-options", "-gv", name])?.status.success() {
             tmux.execute(["set-option", "-g", name, value])?;

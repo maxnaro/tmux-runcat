@@ -54,4 +54,5 @@ $result = [UIntPtr]::Zero
 
 & (Join-Path $PSScriptRoot 'configure-windows-terminal.ps1')
 Write-Output "Installed $($fonts.Count) fonts. Font registry backup: $registryBackup"
-Write-Output 'Selected JetBrainsMono RunCat v2: the original NF font with running and breathing poses.'
+$fontFamily = (Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'font-family.txt')).Trim()
+Write-Output "Selected ${fontFamily}: the original NF font with configurable cat sizes."

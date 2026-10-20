@@ -9,7 +9,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 const POLL: Duration = Duration::from_millis(50);
-const FORMAT: &str = "#{client_name}\t#{session_id}\t#{@runcat-keys}\t#{@runcat-idle}\t#{@runcat-min-fps}\t#{@runcat-max-fps}";
+const FORMAT: &str = "#{client_name}\t#{session_id}\t#{@runcat-keys}\t#{@runcat-idle}\t#{@runcat-min-fps}\t#{@runcat-max-fps}\t#{@runcat-size}";
 
 struct Session {
     count: u64,
@@ -21,7 +21,7 @@ fn parse_clients(lines: impl Iterator<Item = String>) -> HashMap<String, Session
     let mut sessions: HashMap<String, Session> = HashMap::new();
     for line in lines {
         let fields: Vec<_> = line.split('\t').collect();
-        if fields.len() != 6 {
+        if fields.len() != 7 {
             continue;
         }
         sessions
@@ -29,7 +29,7 @@ fn parse_clients(lines: impl Iterator<Item = String>) -> HashMap<String, Session
             .or_insert_with(|| Session {
                 count: fields[2].parse().unwrap_or(0),
                 clients: Vec::new(),
-                settings: Settings::parse(fields[3], fields[4], fields[5]),
+                settings: Settings::parse(fields[3], fields[4], fields[5], fields[6]),
             })
             .clients
             .push(fields[0].to_owned());
@@ -137,9 +137,9 @@ mod tests {
     fn clients_are_grouped_by_session_with_independent_counts() {
         let sessions = parse_clients(
             [
-                "/dev/pts/1\t$1\t4\t2\t3\t12",
-                "/dev/pts/2\t$1\t4\t2\t3\t12",
-                "/dev/pts/3\t$2\t9\t1\t4\t8",
+                "/dev/pts/1\t$1\t4\t2\t3\t12\tmedium",
+                "/dev/pts/2\t$1\t4\t2\t3\t12\tmedium",
+                "/dev/pts/3\t$2\t9\t1\t4\t8\tlarge",
                 "invalid",
             ]
             .into_iter()
@@ -149,5 +149,9 @@ mod tests {
         assert_eq!(sessions["$1"].clients.len(), 2);
         assert_eq!(sessions["$2"].count, 9);
         assert_eq!(sessions["$2"].settings.idle, 1.0);
+        assert_eq!(
+            sessions["$2"].settings.size,
+            crate::animation::CatSize::Large
+        );
     }
 }

@@ -1,14 +1,48 @@
 use std::collections::VecDeque;
 
 pub const SLEEP_POSE: &str = "\u{effa}\u{effb}";
+#[cfg(test)]
 const SLEEP_POSES: [&str; 3] = [SLEEP_POSE, "\u{effc}\u{effd}", "\u{effe}\u{efff}"];
 const SLEEP_STEP_SECONDS: f64 = 0.75;
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum CatSize {
+    Small,
+    #[default]
+    Medium,
+    Large,
+}
+
+impl CatSize {
+    pub fn parse(value: &str) -> Self {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "small" | "1" => Self::Small,
+            "large" | "3" => Self::Large,
+            _ => Self::Medium,
+        }
+    }
+
+    fn pose(self, frame: u32, sleeping: bool) -> String {
+        let index = if sleeping { 5 + frame } else { frame };
+        let points: Vec<u32> = match self {
+            Self::Small => vec![0xf600 + index],
+            Self::Medium if sleeping => vec![0xeffa + 2 * frame, 0xeffb + 2 * frame],
+            Self::Medium => vec![0xeff0 + frame, 0xeff5 + frame],
+            Self::Large => (0..3).map(|half| 0xf620 + 3 * index + half).collect(),
+        };
+        points
+            .into_iter()
+            .map(|point| char::from_u32(point).unwrap())
+            .collect()
+    }
+}
 
 #[derive(Clone, Copy, Debug)]
 pub struct Settings {
     pub idle: f64,
     pub minimum: f64,
     pub maximum: f64,
+    pub size: CatSize,
 }
 
 impl Default for Settings {
@@ -17,12 +51,13 @@ impl Default for Settings {
             idle: 2.0,
             minimum: 3.0,
             maximum: 12.0,
+            size: CatSize::Medium,
         }
     }
 }
 
 impl Settings {
-    pub fn parse(idle: &str, minimum: &str, maximum: &str) -> Self {
+    pub fn parse(idle: &str, minimum: &str, maximum: &str, size: &str) -> Self {
         fn number(value: &str, fallback: f64, low: f64, high: f64) -> f64 {
             value
                 .parse::<f64>()
@@ -36,6 +71,7 @@ impl Settings {
             idle: number(idle, 2.0, 0.1, 3600.0),
             minimum,
             maximum: number(maximum, 12.0, minimum, 20.0),
+            size: CatSize::parse(size),
         }
     }
 }
@@ -60,7 +96,7 @@ impl Animation {
             last_input: f64::NEG_INFINITY,
             samples: VecDeque::new(),
             fps: 3.0,
-            frame: 0,
+            frame: 4,
             next_frame: now,
             updated: now,
             pose: SLEEP_POSE.to_owned(),
@@ -87,7 +123,7 @@ impl Animation {
             self.next_frame = now;
             let started = *self.sleep_since.get_or_insert(now);
             self.sleep_step = ((now - started) / SLEEP_STEP_SECONDS) as usize % 4;
-            self.pose = SLEEP_POSES[[0, 1, 2, 1][self.sleep_step]].to_owned();
+            self.pose = settings.size.pose([0, 1, 2, 1][self.sleep_step], true);
             return &self.pose;
         }
 
@@ -102,15 +138,10 @@ impl Animation {
             self.next_frame = now;
         }
         if now >= self.next_frame {
-            self.pose = [
-                char::from_u32(0xeff0 + self.frame).unwrap(),
-                char::from_u32(0xeff5 + self.frame).unwrap(),
-            ]
-            .iter()
-            .collect();
             self.frame = (self.frame + 1) % 5;
             self.next_frame = now + 1.0 / self.fps;
         }
+        self.pose = settings.size.pose(self.frame, false);
         &self.pose
     }
 }
@@ -172,12 +203,12 @@ mod tests {
 
     #[test]
     fn settings_validate_and_apply_live() {
-        let settings = Settings::parse("NaN", "bad", "-1");
+        let settings = Settings::parse("NaN", "bad", "-1", "invalid");
         assert_eq!(
             (settings.idle, settings.minimum, settings.maximum),
             (2.0, 3.0, 3.0)
         );
-        let settings = Settings::parse("0.5", "8", "20");
+        let settings = Settings::parse("0.5", "8", "20", "medium");
         let mut cat = Animation::new(0, 0.0);
         cat.update(1, 0.1, settings);
         assert!(cat.fps >= 8.0);
@@ -197,5 +228,46 @@ mod tests {
         let pose = cat.update(1, 3.1, settings);
         assert_ne!(pose, SLEEP_POSE);
         assert_eq!(pose.chars().count(), 2);
+    }
+
+    #[test]
+    fn all_sizes_keep_their_width_while_running_and_breathing() {
+        for (size, width) in [
+            (CatSize::Small, 1),
+            (CatSize::Medium, 2),
+            (CatSize::Large, 3),
+        ] {
+            let mut cat = Animation::new(0, 0.0);
+            let settings = Settings {
+                size,
+                ..Settings::default()
+            };
+            for step in 0..4 {
+                assert_eq!(
+                    cat.update(0, step as f64 * 0.75, settings).chars().count(),
+                    width
+                );
+            }
+            assert_eq!(cat.update(1, 3.1, settings).chars().count(), width);
+        }
+    }
+
+    #[test]
+    fn size_updates_immediately_without_resetting_activity() {
+        let mut cat = Animation::new(0, 0.0);
+        cat.update(1, 0.1, Settings::default());
+        let large = Settings {
+            size: CatSize::Large,
+            ..Settings::default()
+        };
+        assert_eq!(cat.update(1, 0.11, large).chars().count(), 3);
+        let small = Settings {
+            size: CatSize::Small,
+            ..Settings::default()
+        };
+        assert_eq!(cat.update(1, 0.12, small).chars().count(), 1);
+        assert_eq!(CatSize::parse(" LARGE "), CatSize::Large);
+        assert_eq!(CatSize::parse("1"), CatSize::Small);
+        assert_eq!(CatSize::parse("2"), CatSize::Medium);
     }
 }
