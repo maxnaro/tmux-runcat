@@ -97,27 +97,35 @@ def main():
         if index and contour_area(contour) * orientation > 0:
             contour = list(reversed(contour))
         sleep_outline.append([(x, 1024-y) for x, y in contour])
+    sleep_floor = min(y for contour in sleep_outline for _, y in contour)
+    poses = outlines + [
+        [[(x, sleep_floor + (y-sleep_floor)*(1+0.04*breath)) for x, y in contour]
+         for contour in sleep_outline]
+        for breath in range(3)
+    ]
+    # The two-cell mappings remain compatible with previous font versions.
+    layout = [(0xEFF0+frame+half*5, 2, half, frame)
+              for frame in range(5) for half in range(2)]
+    layout += [(0xEFFA+frame*2+half, 2, half, 5+frame)
+               for frame in range(3) for half in range(2)]
+    layout += [(0xF600+frame, 1, 0, frame) for frame in range(8)]
+    layout += [(0xF620+frame*3+half, 3, half, frame)
+               for frame in range(8) for half in range(3)]
+    family = Path(__file__).with_name("font-family.txt").read_text().strip()
     for style in ("Regular", "Bold", "Italic", "BoldItalic"):
         font = TTFont(args.source / f"JetBrainsMonoNerdFont-{style}.ttf", recalcTimestamp=False)
         original_cmap = font.getBestCmap().copy()
         advance = font["hmtx"]["space"][0]
         order = list(font.getGlyphOrder())
-        scale = min((2 * advance - 80) / (xmax - xmin), font["OS/2"].sCapHeight / (ymax - ymin))
-        sleep_floor = min(y for contour in sleep_outline for _, y in contour)
-        for code in range(0xEFF0, 0xF000):
+        for code, cells, half, frame in sorted(layout):
             assert code not in original_cmap, "Cat codepoint collides with an existing icon"
-            name = f"runcat{code - 0xEFF0}"
-            if code < 0xEFFA:
-                half, frame = divmod(code - 0xEFF0, 5)
-                contours = outlines[frame]
-            else:
-                breath, half = divmod(code - 0xEFFA, 2)
-                # Anchor the lower silhouette while the body rises by 4/8%.
-                contours = [[(x, sleep_floor + (y-sleep_floor)*(1+0.04*breath))
-                             for x, y in contour] for contour in sleep_outline]
+            name = f"runcat{code:04x}"
+            height = font["hhea"].ascent-40 if cells == 3 else font["OS/2"].sCapHeight
+            scale = min((cells*advance-80)/(xmax-xmin), height/(ymax-ymin))
+            left = (cells*advance - (xmax-xmin)*scale)/2
             pen = TTGlyphPen(None)
-            for contour in contours:
-                transformed = [(40 + (x-xmin)*scale, 20 + (y-ymin)*scale) for x, y in contour]
+            for contour in poses[frame]:
+                transformed = [(left + (x-xmin)*scale, 20 + (y-ymin)*scale) for x, y in contour]
                 clipped = clip_polygon(transformed, half * advance, True)
                 clipped = clip_polygon(clipped, (half+1) * advance, False)
                 if len(clipped) < 3:
@@ -136,10 +144,9 @@ def main():
                 if table.isUnicode() and table.format != 14:
                     table.cmap[code] = name
         font.setGlyphOrder(order)
-        family = "JetBrainsMono RunCat v2"
         face = {"BoldItalic": "Bold Italic"}.get(style, style)
         names = {1: family, 2: face, 3: f"{family}-{style}-3.5.1",
-                 4: f"{family} {face}", 6: f"JetBrainsMonoRunCatV2-{style}",
+                 4: f"{family} {face}", 6: f"{family.replace(' ', '')}-{style}",
                  16: family, 17: face}
         for record in font["name"].names:
             if record.nameID in names:

@@ -3,8 +3,8 @@
 A small cat for your tmux status bar. It wakes when you type, runs faster as
 your typing speeds up, slows down, and curls up to sleep after two idle seconds.
 Each session has independent activity. When sleeping, the cat breathes gently
-over a three-second cycle. It occupies two character cells in both states,
-keeping the surrounding status bar steady.
+over a three-second cycle. Choose a one-, two-, or three-cell cat with
+`@runcat-size`. Its width stays fixed in both states at the selected size.
 
 The loader and animation worker are one Rust executable with no third-party
 Rust dependencies. Key counting uses tmux commands; no process is started per
@@ -29,11 +29,11 @@ bash fonts/setup.sh
 
 The pinned font sources and build tools are bundled, so building the binary
 and fonts needs no network after cloning. Font setup installs both the clean
-JetBrainsMono Nerd Font family and `JetBrainsMono RunCat v2`, which adds
+JetBrainsMono Nerd Font family and `JetBrainsMono RunCat v3`, which adds
 the running and sleeping poses while preserving existing glyphs and spacing.
 
 On WSL, setup installs fonts on Windows and selects the combined font in stable
-Windows Terminal. On Linux, select `JetBrainsMono RunCat v2` in your terminal.
+Windows Terminal. On Linux, select `JetBrainsMono RunCat v3` in your terminal.
 See [font setup](fonts/README.md) for details and backups.
 
 Include `#{@runcat-frame}` wherever you want the cat, and load the plugin after
@@ -62,12 +62,19 @@ can also be changed with `set-option` while the animation is running.
 | `@runcat-idle` | `2` | Idle seconds before sleeping (0.1–3600) |
 | `@runcat-min-fps` | `3` | Minimum running speed (1–20 FPS) |
 | `@runcat-max-fps` | `12` | Maximum running speed (minimum–20 FPS) |
+| `@runcat-size` | `medium` | `small` (1 cell), `medium` (2 cells), or `large` (3 cells) |
 
 ```tmux
 set -g @runcat-idle 3
 set -g @runcat-min-fps 4
 set -g @runcat-max-fps 15
+set -g @runcat-size medium
 ```
+
+Size updates apply immediately, including while sleeping. Numeric aliases
+`1`, `2`, and `3` are accepted; invalid values use `medium`. All sizes share
+one font installation. The large preset uses more of the available row height,
+while the rest of the terminal keeps its normal font size.
 
 ## Behavior
 

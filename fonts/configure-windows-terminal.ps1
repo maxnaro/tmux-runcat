@@ -1,5 +1,6 @@
 param([string]$SettingsPath = (Join-Path $env:LOCALAPPDATA 'Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState\settings.json'))
 $ErrorActionPreference = 'Stop'
+$fontFamily = (Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'font-family.txt')).Trim()
 if (Test-Path -LiteralPath $settingsPath) {
     $settings = [IO.File]::ReadAllText($settingsPath)
     # Windows Terminal accepts JSON with comments and trailing commas. Keep
@@ -30,8 +31,8 @@ if (Test-Path -LiteralPath $settingsPath) {
         if (-not $profile.PSObject.Properties['font']) {
             $profile | Add-Member -NotePropertyName font -NotePropertyValue ([pscustomobject]@{})
         }
-        if ($profile.font.face -ne 'JetBrainsMono RunCat v2') {
-            $profile.font | Add-Member -NotePropertyName face -NotePropertyValue 'JetBrainsMono RunCat v2' -Force
+        if ($profile.font.face -ne $fontFamily) {
+            $profile.font | Add-Member -NotePropertyName face -NotePropertyValue $fontFamily -Force
             $changed = $true
         }
     }

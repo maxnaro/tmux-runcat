@@ -3,6 +3,7 @@
 set -euo pipefail
 
 FONT_SETUP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+FONT_FAMILY="$(cat "$FONT_SETUP_DIR/font-family.txt")"
 FONT_DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/tmux-runcat"
 FONT_BUILD_ONLY=false
 case "${1:-}" in
@@ -51,5 +52,5 @@ else
     if command -v fc-cache >/dev/null 2>&1; then
         fc-cache -f "$FONT_INSTALL_DIR"
     fi
-    printf 'Installed RunCat fonts. Select "JetBrainsMono RunCat v2" in your terminal.\n'
+    printf 'Installed RunCat fonts. Select "%s" in your terminal.\n' "$FONT_FAMILY"
 fi

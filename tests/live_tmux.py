@@ -80,7 +80,12 @@ def main():
             return re.sub(r"#\[[^]]*\]", "", pose())
 
         def sleeping():
-            return visible_pose()[:2] in SLEEP_POSES
+            text = visible_pose()
+            if len(text) == 1:
+                return 0xF605 <= ord(text[0]) <= 0xF607
+            if len(text) == 3:
+                return ord(text[0]) in (0xF62F, 0xF632, 0xF635)
+            return text in SLEEP_POSES
 
         try:
             # Load before any session exists, as happens when other plugins
@@ -128,6 +133,19 @@ def main():
                 time.sleep(0.05)
             assert sleeping_frames == SLEEP_POSES, "breathing frames did not cycle"
 
+            # Resizing applies live in both states without changing width
+            # during the animation or interfering with the application's input.
+            run("set-option", "-t", "runcat-live", "@runcat-idle", "0.25")
+            for size, width in (("small", 1), ("large", 3), ("medium", 2)):
+                run("set-option", "-t", "runcat-live", "@runcat-size", size)
+                wait_for(lambda: len(visible_pose()) == width, "live size update did not apply")
+                assert sleeping(), "resizing woke an idle cat"
+                run("set-option", "-F", "-t", "runcat-live", "@runcat-keys", "#{e|+:#{@runcat-keys},1}")
+                wait_for(lambda: not sleeping(), "resized cat did not wake")
+                assert len(visible_pose()) == width
+                wait_for(sleeping, "resized cat did not return to sleep", timeout=1)
+                assert len(visible_pose()) == width
+
             # The existing prefix shortcut still splits a pane.
             os.write(master, b"\x02%")
             wait_for(lambda: len(run("list-panes", "-F", "#{pane_id}").splitlines()) == 2,
@@ -170,7 +188,7 @@ def main():
                                       capture_output=True, text=True, env=environment)
             assert rejected.returncode != 0 and "already bound" in rejected.stderr
             assert "custom-binding" in run("list-keys", "-T", "root", "Any")
-            print("PASS: cold startup without a session, idle/wake, key forwarding, mouse events, shortcuts, live settings, and reloads")
+            print("PASS: cold startup, breathing, all three sizes, idle/wake, key forwarding, mouse events, shortcuts, and reloads")
         finally:
             subprocess.run(command + ["kill-server"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             if client:

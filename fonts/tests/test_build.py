@@ -64,7 +64,7 @@ class FontBuildTests(unittest.TestCase):
 
     def test_sleep_pose_is_bundled_and_fits_two_cells(self):
         font = TTFont(self.data / "generated/JetBrainsMonoRunCat-Regular.ttf")
-        self.assertEqual(font["name"].getDebugName(1), "JetBrainsMono RunCat v2")
+        self.assertEqual(font["name"].getDebugName(1), "JetBrainsMono RunCat v3")
         for code in range(0xEFFA, 0xF000):
             name = font.getBestCmap()[code]
             glyph = font["glyf"][name]
@@ -90,6 +90,35 @@ class FontBuildTests(unittest.TestCase):
             self.assertLess(glyphs[0].yMax, glyphs[1].yMax)
             self.assertLess(glyphs[1].yMax, glyphs[2].yMax)
             self.assertLess(max(g.yMin for g in glyphs) - min(g.yMin for g in glyphs), 15)
+
+    def test_all_sizes_have_eight_poses_with_safe_cell_and_row_bounds(self):
+        for style in ("Regular", "Bold", "Italic", "BoldItalic"):
+            font = TTFont(self.data / f"generated/JetBrainsMonoRunCat-{style}.ttf")
+            heights = []
+            for cells in (1, 2, 3):
+                for frame in range(8):
+                    if cells == 1:
+                        codes = [0xF600+frame]
+                    elif cells == 3:
+                        codes = [0xF620+3*frame+half for half in range(3)]
+                    elif frame < 5:
+                        codes = [0xEFF0+frame, 0xEFF5+frame]
+                    else:
+                        codes = [0xEFFA+2*(frame-5), 0xEFFB+2*(frame-5)]
+                    glyphs = []
+                    for code in codes:
+                        name = font.getBestCmap()[code]
+                        glyph = font["glyf"][name]
+                        self.assertEqual(font["hmtx"][name][0], 600)
+                        self.assertGreaterEqual(glyph.xMin, 0)
+                        self.assertLessEqual(glyph.xMax, 600)
+                        self.assertGreaterEqual(glyph.yMin, 0)
+                        self.assertLessEqual(glyph.yMax, font["hhea"].ascent)
+                        glyphs.append(glyph)
+                    if frame == 0:
+                        heights.append(max(g.yMax for g in glyphs)-min(g.yMin for g in glyphs))
+            self.assertLess(heights[0], heights[1])
+            self.assertLess(heights[1], heights[2])
 
 
 if __name__ == "__main__":
