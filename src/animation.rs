@@ -29,6 +29,7 @@ pub enum CatSize {
     #[default]
     Medium,
     Large,
+    XLarge,
 }
 
 impl CatSize {
@@ -36,6 +37,7 @@ impl CatSize {
         match value.trim().to_ascii_lowercase().as_str() {
             "small" | "1" => Self::Small,
             "large" | "3" => Self::Large,
+            "xlarge" | "4" => Self::XLarge,
             _ => Self::Medium,
         }
     }
@@ -47,6 +49,7 @@ impl CatSize {
             Self::Medium if sleeping => vec![0xeffa + 2 * frame, 0xeffb + 2 * frame],
             Self::Medium => vec![0xeff0 + frame, 0xeff5 + frame],
             Self::Large => (0..3).map(|half| 0xf620 + 3 * index + half).collect(),
+            Self::XLarge => (0..4).map(|half| 0xf640 + 4 * index + half).collect(),
         };
         points
             .into_iter()
@@ -371,6 +374,7 @@ mod tests {
             (CatSize::Small, 1),
             (CatSize::Medium, 2),
             (CatSize::Large, 3),
+            (CatSize::XLarge, 4),
         ] {
             let mut cat = Animation::new(0, 0.0);
             let settings = Settings {
@@ -404,6 +408,8 @@ mod tests {
         assert_eq!(CatSize::parse(" LARGE "), CatSize::Large);
         assert_eq!(CatSize::parse("1"), CatSize::Small);
         assert_eq!(CatSize::parse("2"), CatSize::Medium);
+        assert_eq!(CatSize::parse(" XLARGE "), CatSize::XLarge);
+        assert_eq!(CatSize::parse("4"), CatSize::XLarge);
     }
 
     #[test]

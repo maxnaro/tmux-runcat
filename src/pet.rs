@@ -2,6 +2,7 @@ use crate::animation::CatSize;
 use std::sync::OnceLock;
 
 const BASE: u32 = 0xf700;
+const XLARGE_BASE: u32 = 0xe400;
 const REST_ACTIONS: [&str; 6] = ["lick-paw", "idle", "itch", "lick-body", "meow", "sit"];
 
 #[derive(Clone, Copy)]
@@ -39,12 +40,19 @@ fn clip(name: &str) -> Clip {
 
 pub fn pose(size: CatSize, action: &str, frame: u32) -> String {
     let clip = clip(action);
+    let frame = clip.first + frame % clip.frames;
+    if size == CatSize::XLarge {
+        return (0..4)
+            .map(|half| char::from_u32(XLARGE_BASE + 4 * frame + half).unwrap())
+            .collect();
+    }
     let (cells, offset) = match size {
         CatSize::Small => (1, 0),
         CatSize::Medium => (2, 1),
         CatSize::Large => (3, 3),
+        CatSize::XLarge => unreachable!(),
     };
-    let first = BASE + 6 * (clip.first + frame % clip.frames) + offset;
+    let first = BASE + 6 * frame + offset;
     (0..cells)
         .map(|half| char::from_u32(first + half).unwrap())
         .collect()
@@ -203,13 +211,16 @@ mod tests {
                     (CatSize::Small, 1),
                     (CatSize::Medium, 2),
                     (CatSize::Large, 3),
+                    (CatSize::XLarge, 4),
                 ] {
                     let text = pose(size, name, frame);
                     assert_eq!(text.chars().count(), width);
-                    assert!(
-                        text.chars()
-                            .all(|value| (0xf700..0xf8a4).contains(&(value as u32)))
-                    );
+                    let range = if size == CatSize::XLarge {
+                        0xe400..0xe518
+                    } else {
+                        0xf700..0xf8a4
+                    };
+                    assert!(text.chars().all(|value| range.contains(&(value as u32))));
                 }
             }
         }

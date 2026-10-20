@@ -1,7 +1,7 @@
 # RunCat status animation
 
 Run `bash fonts/setup.sh` from the plugin repository root. It builds and installs the clean
-JetBrainsMono Nerd Font family and the separate `JetBrainsMono RunCat v4`
+JetBrainsMono Nerd Font family and the separate `JetBrainsMono RunCat v5`
 family. No manual downloads, pip, or virtual
 environment are needed. Python 3.11+ must be available on PATH.
 
@@ -37,7 +37,7 @@ bash fonts/setup.sh \
 
 Only the regular face is required. Supply optional faces from the same family
 when available; missing faces are left for the terminal to synthesize. The
-patched family defaults to `<original family> RunCat v4`. Use `--family
+patched family defaults to `<original family> RunCat v5`. Use `--family
 'My Mono RunCat'` to name it yourself. `--build-only` works with these options.
 Setup prints the selected family, and WSL setup passes it to Windows Terminal.
 
@@ -71,7 +71,7 @@ also needs Nerd Font device icons. A base that already uses one of the cat
 codepoints is rejected rather than having its glyphs overwritten.
 
 Cat outlines scale to the selected font's cell advance, units per em, cap
-height, and row ascent. Fonts without a declared cap height use the height of
+height, and line box. Fonts without a declared cap height use the height of
 `H`. The base font's line metrics and ordinary character widths stay intact.
 The generated `font-family.txt` and `font-names.json` describe the current
 build; installers use that manifest to exclude files from earlier selections.
@@ -80,7 +80,7 @@ build; installers use that manifest to exclude files from earlier selections.
 
 Setup detects WSL and installs fonts in the current Windows user's font
 directory using Windows PowerShell. WSL Windows interoperability must be
-enabled. It selects the generated family (`JetBrainsMono RunCat v4` by default)
+enabled. It selects the generated family (`JetBrainsMono RunCat v5` by default)
 in stable Windows Terminal's defaults, WSL profiles, and profiles using the
 previous default or an existing RunCat family, preserving other
 settings. Settings and font registrations are backed up before changes.
@@ -99,7 +99,7 @@ when available. Select the printed family in your terminal. For Kitty,
 you can instead map only the cat characters while keeping another main font:
 
 ```conf
-symbol_map U+EFF0-U+EFFF,U+F600-U+F607,U+F620-U+F637,U+F700-U+F8A3 JetBrainsMono RunCat v4
+symbol_map U+E400-U+E517,U+EFF0-U+EFFF,U+F600-U+F607,U+F620-U+F637,U+F640-U+F65F,U+F700-U+F8A3 JetBrainsMono RunCat v5
 ```
 
 ## Animation and font construction
@@ -124,28 +124,30 @@ with `set -g @runcat-skin pet-cats`; select `classic` for the original silhouett
 New input interrupts resting gestures immediately. Pet Cats' running speed
 uses the same uncapped typing-rate calculation as the classic skin.
 
-Pet Cats uses U+F700–U+F8A3: 70 poses, each available in all three sizes. The
+Pet Cats uses U+F700–U+F8A3 for small/medium/large and U+E400–U+E517
+for xlarge: 70 poses, each available in all four sizes. The
 runtime and font builder share `pet-cats/animations.tsv`, so the action names,
 frame counts, and glyph ordering stay in sync. Native pixels become TrueType
-outlines and COLR v0/CPAL color layers. The base glyph also contains a
-monochrome fallback. Existing base-font color palettes and COLR v0/v1 artwork
-are preserved. The two sleeping images gain the same subtle 0/4/8% breathing
+outlines that inherit the status foreground color, with eye cutouts. Existing
+base-font color palettes and COLR v0/v1 artwork are preserved. The two sleeping
+images gain the same subtle 0/4/8% breathing
 motion, without adding text or changing cell widths.
 
 The unmodified [Pet Cats Pack](https://luizmelo.itch.io/pet-cat-pack) archive,
 its CC0 notice, and the pinned pure Python PNG reader are in `vendor/`. No
 download is needed during setup. This skin uses Cat-1; the complete official
-archive is retained for provenance. The original sprite colors show in color
-font renderers, including Windows Terminal's color-glyph rendering path.
-Other terminals can use the monochrome fallback without a separate build.
+archive is retained for provenance. Use `#[fg=cyan]#{@runcat-frame}` in your
+status format for a cyan cat, or choose any other tmux foreground color.
 
 Medium poses occupy two adjacent characters: U+EFF0–U+EFF4 for the left halves
 and U+EFF5–U+EFF9 for the right halves. U+EFFA–U+EFFF contain three breathing
 poses, drawn from `sleeping-cat.svg`. They raise the silhouette by 0%, 4%, and
 8% over a three-second cycle. Small poses use U+F600–U+F607 (one cell);
-large poses use U+F620–U+F637 (three cells). All presets contain five running
-and three breathing poses. Both states keep the selected width, preserving
-the status layout. The large cat fills more of the existing row height.
+large poses use U+F620–U+F637 (three cells); xlarge poses use U+F640–U+F65F
+(four cells). All presets contain five running and three breathing poses.
+Both states keep the selected width, preserving the status layout. The large
+cat fills more of the existing row height. Xlarge uses the full line box,
+including the descent, for about 35% larger Pet Cats sprites than large.
 The silhouette fills most of the text
 height without changing terminal character widths. Existing JetBrainsMono
 glyphs, spacing, weights, and ligature features are preserved.

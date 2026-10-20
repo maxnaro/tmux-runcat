@@ -6,7 +6,7 @@ after two idle seconds.
 Each session has independent activity. Choose the classic silhouette or the
 expressive Pet Cats skin, which stretches, walks, runs, grooms, meows, and
 lies down before sleeping. When sleeping, the cat breathes gently
-over a three-second cycle. Choose a one-, two-, or three-cell cat with
+over a three-second cycle. Choose a one-, two-, three-, or four-cell cat with
 `@runcat-size`. Its width stays fixed in both states at the selected size.
 
 The loader and animation worker are one Rust executable with no third-party
@@ -32,11 +32,11 @@ bash fonts/setup.sh
 
 The pinned font sources and build tools are bundled, so building the binary
 and fonts needs no network after cloning. Font setup installs both the clean
-JetBrainsMono Nerd Font family and `JetBrainsMono RunCat v4`, which adds
+JetBrainsMono Nerd Font family and `JetBrainsMono RunCat v5`, which adds
 the running and sleeping poses while preserving existing glyphs and spacing.
 
 On WSL, setup installs fonts on Windows and selects the combined font in stable
-Windows Terminal. On Linux, select `JetBrainsMono RunCat v4` in your terminal.
+Windows Terminal. On Linux, select `JetBrainsMono RunCat v5` in your terminal.
 See [font setup](fonts/README.md) for details and backups.
 
 To use your own base font, supply a regular monospaced static TrueType file:
@@ -45,7 +45,7 @@ To use your own base font, supply a regular monospaced static TrueType file:
 bash fonts/setup.sh --base-font '/path/to/MyMono-Regular.ttf'
 ```
 
-Setup creates a separate `<original family> RunCat v4` family, using the base
+Setup creates a separate `<original family> RunCat v5` family, using the base
 font's spacing and height for all cat sizes. Add `--bold-font`, `--italic-font`,
 and `--bold-italic-font` for matching faces, or `--family` to choose the output
 family name. These are font setup options; terminal fonts cannot be selected
@@ -78,7 +78,7 @@ can also be changed with `set-option` while the animation is running.
 | `@runcat-idle` | `2` | Idle seconds before sleeping (0.1–3600) |
 | `@runcat-min-fps` | `3` | Minimum running speed (1–20 FPS) |
 | `@runcat-max-fps` | `0` | `0` or `unlimited` removes the cap; a positive FPS value sets an optional limit |
-| `@runcat-size` | `medium` | `small` (1 cell), `medium` (2 cells), or `large` (3 cells) |
+| `@runcat-size` | `medium` | `small` (1 cell), `medium` (2 cells), `large` (3 cells), or `xlarge` (4 cells) |
 | `@runcat-skin` | `classic` | `classic` or `pet-cats` |
 
 ```tmux
@@ -90,11 +90,11 @@ set -g @runcat-skin pet-cats
 ```
 
 The Pet Cats skin uses the first cat from [Pet Cats Pack by LuizMelo](https://luizmelo.itch.io/pet-cat-pack),
-bundled under CC0. Install the v4 fonts before selecting it. The original
-sprite colors are stored as COLR/CPAL font layers; terminals with color-font
-support show the original orange cat, while other terminals use a monochrome
-silhouette with eye cutouts. Both skins work with custom base fonts and all
-three sizes. Skin changes apply live.
+bundled under CC0. Install the v5 fonts before selecting it. Both skins inherit
+the status foreground color, including on terminals with color-font support.
+For example, `#[fg=cyan]#{@runcat-frame}` draws a cyan cat; eye details remain
+cutouts. Both skins work with custom base fonts and all four sizes. Skin changes
+apply live.
 
 | Activity | Pet Cats behavior |
 | --- | --- |
@@ -123,9 +123,10 @@ After updating an existing server from an older version, run
 `tmux set -g @runcat-max-fps 0` to remove its previously saved limit.
 
 Size updates apply immediately, including while sleeping. Numeric aliases
-`1`, `2`, and `3` are accepted; invalid values use `medium`. All sizes share
+`1`, `2`, `3`, and `4` are accepted; invalid values use `medium`. All sizes share
 one font installation. The large preset uses more of the available row height,
-while the rest of the terminal keeps its normal font size.
+and `xlarge` uses the full existing line box, including the descent. The rest
+of the terminal keeps its normal font size. Install the v5 font to use `xlarge`.
 
 ## Behavior
 
