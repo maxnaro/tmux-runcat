@@ -65,7 +65,7 @@ mkdir -p "$FONT_DATA_DIR/source" "$FONT_DATA_DIR/generated"
 if [[ -z "$FONT_BASE" ]]; then
     tar -xJf "$FONT_SETUP_DIR/vendor/JetBrainsMono-v3.5.1.tar.xz" -C "$FONT_DATA_DIR/source"
 fi
-PYTHONPATH="$FONT_SETUP_DIR/vendor/fonttools-4.67.0-py3-none-any.whl" \
+PYTHONPATH="$FONT_SETUP_DIR/vendor/fonttools-4.67.0-py3-none-any.whl:$FONT_SETUP_DIR/vendor/pypng-0.20220715.0-py3-none-any.whl" \
     PYTHONDONTWRITEBYTECODE=1 python3 "$FONT_SETUP_DIR/build-runcat-font.py" \
     "$FONT_DATA_DIR/source" "$FONT_DATA_DIR/generated" "${FONT_BUILD_ARGS[@]}"
 FONT_FAMILY="$(cat "$FONT_DATA_DIR/generated/font-family.txt")"

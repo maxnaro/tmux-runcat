@@ -57,4 +57,4 @@ $result = [UIntPtr]::Zero
 
 & (Join-Path $PSScriptRoot 'configure-windows-terminal.ps1') -FontFamily $fontFamily
 Write-Output "Installed $($fonts.Count) fonts. Font registry backup: $registryBackup"
-Write-Output "Selected ${fontFamily}: your base font with configurable cat sizes."
+Write-Output "Selected ${fontFamily}: your base font with classic and Pet Cats skins."

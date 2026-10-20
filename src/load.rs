@@ -45,11 +45,13 @@ pub fn run(plugin: &Path, explicit: Option<(&OsStr, &OsStr)>) -> io::Result<()> 
     }
     for (name, value) in [
         ("@runcat-frame", SLEEP_POSE),
+        ("@runcat-state", "sleep"),
         ("@runcat-keys", "0"),
         ("@runcat-idle", "2"),
         ("@runcat-min-fps", "3"),
         ("@runcat-max-fps", "0"),
         ("@runcat-size", "medium"),
+        ("@runcat-skin", "classic"),
     ] {
         if !tmux.output(["show-options", "-gv", name])?.status.success() {
             tmux.execute(["set-option", "-g", name, value])?;

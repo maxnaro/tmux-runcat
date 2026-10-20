@@ -11,9 +11,13 @@ import unittest
 
 FONT_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(FONT_DIR / "vendor/fonttools-4.67.0-py3-none-any.whl"))
+sys.path.insert(0, str(FONT_DIR / "vendor/pypng-0.20220715.0-py3-none-any.whl"))
+sys.path.insert(0, str(FONT_DIR))
+from fontTools.colorLib.builder import buildCOLR, buildCPAL
 from fontTools.fontBuilder import FontBuilder
 from fontTools.pens.ttGlyphPen import TTGlyphPen
 from fontTools.ttLib import TTFont, newTable
+import pet_cats
 
 
 class FontBuildTests(unittest.TestCase):
@@ -69,7 +73,7 @@ class FontBuildTests(unittest.TestCase):
 
     def test_sleep_pose_is_bundled_and_fits_two_cells(self):
         font = TTFont(self.data / "generated/RunCat-Regular.ttf")
-        self.assertEqual(font["name"].getDebugName(1), "JetBrainsMono RunCat v3")
+        self.assertEqual(font["name"].getDebugName(1), "JetBrainsMono RunCat v4")
         for code in range(0xEFFA, 0xF000):
             name = font.getBestCmap()[code]
             glyph = font["glyf"][name]
@@ -125,6 +129,42 @@ class FontBuildTests(unittest.TestCase):
             self.assertLess(heights[0], heights[1])
             self.assertLess(heights[1], heights[2])
 
+    def test_pet_cats_preserve_source_colors_and_fit_all_sizes(self):
+        frames, layout, _, palette = pet_cats.poses()
+        self.assertEqual(len(frames), 70)
+        self.assertEqual(len(layout), 420)
+        for style in ("Regular", "Bold", "Italic", "BoldItalic"):
+            font = TTFont(self.data / f"generated/RunCat-{style}.ttf")
+            self.assertEqual(font["COLR"].version, 0)
+            self.assertEqual([(color.red, color.green, color.blue, color.alpha)
+                              for color in font["CPAL"].palettes[0]], palette)
+            for code, _, _, _ in layout:
+                name = font.getBestCmap()[code]
+                self.assertEqual(font["hmtx"][name][0], 600)
+                layers = font["COLR"].ColorLayers.get(name, [])
+                if font["glyf"][name].numberOfContours:
+                    self.assertTrue(layers, f"missing colors for U+{code:04X}")
+                for layer_name in [name] + [layer.name for layer in layers]:
+                    glyph = font["glyf"][layer_name]
+                    if glyph.numberOfContours:
+                        self.assertGreaterEqual(glyph.xMin, 0)
+                        self.assertLessEqual(glyph.xMax, 600)
+                        self.assertGreaterEqual(glyph.yMin, 0)
+                        self.assertLessEqual(glyph.yMax, font["hhea"].ascent)
+
+    def test_pet_sleep_breathes_without_a_text_indicator_or_baseline_shift(self):
+        font = TTFont(self.data / "generated/RunCat-Regular.ttf")
+        heights, floors = [], []
+        for frame in range(3):
+            glyphs = [font["glyf"][font.getBestCmap()[0xF700 + 6*(40+frame) + 1+half]]
+                      for half in range(2)]
+            glyphs = [glyph for glyph in glyphs if glyph.numberOfContours]
+            heights.append(max(glyph.yMax for glyph in glyphs))
+            floors.append(min(glyph.yMin for glyph in glyphs))
+        self.assertLess(heights[0], heights[1])
+        self.assertLess(heights[1], heights[2])
+        self.assertLessEqual(max(floors)-min(floors), 1)
+
 
 class CustomFontBuildTests(unittest.TestCase):
     @classmethod
@@ -137,7 +177,8 @@ class CustomFontBuildTests(unittest.TestCase):
         cls.environment = {key: value for key, value in os.environ.items()
                            if not key.startswith("RUNCAT_")}
         cls.environment.update(XDG_DATA_HOME=str(cls.root / "data"),
-                               PYTHONPATH=str(FONT_DIR / "vendor/fonttools-4.67.0-py3-none-any.whl"),
+                               PYTHONPATH=os.pathsep.join(str(FONT_DIR / path) for path in
+                                   ("vendor/fonttools-4.67.0-py3-none-any.whl", "vendor/pypng-0.20220715.0-py3-none-any.whl")),
                                PYTHONDONTWRITEBYTECODE="1")
         cls.styles = ("Regular", "Bold", "Italic", "BoldItalic")
         for style in cls.styles:
@@ -205,17 +246,18 @@ class CustomFontBuildTests(unittest.TestCase):
                     return values
 
                 self.assertEqual(os2_properties(original), os2_properties(patched))
-                self.assertEqual(patched["OS/2"].usLastCharIndex, 0xF637)
+                self.assertEqual(patched["OS/2"].usLastCharIndex, 0xF8A3)
                 self.assertEqual(original["hhea"].ascent, patched["hhea"].ascent)
                 self.assertEqual(original["hhea"].descent, patched["hhea"].descent)
-                for code in [*range(0xEFF0, 0xF000), *range(0xF600, 0xF608), *range(0xF620, 0xF638)]:
+                for code in [*range(0xEFF0, 0xF000), *range(0xF600, 0xF608), *range(0xF620, 0xF638), *range(0xF700, 0xF8A4)]:
                     name = patched.getBestCmap()[code]
                     glyph = patched["glyf"][name]
                     self.assertEqual(patched["hmtx"][name][0], 1234)
-                    self.assertGreaterEqual(glyph.xMin, 0)
-                    self.assertLessEqual(glyph.xMax, 1234)
-                    self.assertGreaterEqual(glyph.yMin, 0)
-                    self.assertLessEqual(glyph.yMax, 1900)
+                    if glyph.numberOfContours:
+                        self.assertGreaterEqual(glyph.xMin, 0)
+                        self.assertLessEqual(glyph.xMax, 1234)
+                        self.assertGreaterEqual(glyph.yMin, 0)
+                        self.assertLessEqual(glyph.yMax, 1900)
 
     def test_custom_build_is_reproducible(self):
         before = {path.name: path.read_bytes() for path in self.output.iterdir()}
@@ -241,7 +283,7 @@ class CustomFontBuildTests(unittest.TestCase):
     def test_single_face_derives_family_and_supports_unicode_override(self):
         output = self.root / "single face"
         self.build(output, "--base-font", self.sources / "Regular.ttf")
-        self.assertEqual((output / "font-family.txt").read_text(), "Test Mono RunCat v3\n")
+        self.assertEqual((output / "font-family.txt").read_text(), "Test Mono RunCat v4\n")
         self.build(output, "--base-font", self.sources / "Regular.ttf", "--family", "猫 Mono RunCat")
         font = TTFont(output / "RunCat-Regular.ttf")
         self.assertEqual(font["name"].getDebugName(1), "猫 Mono RunCat")
@@ -286,6 +328,35 @@ class CustomFontBuildTests(unittest.TestCase):
                             "--bold-font", path, check=False)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("same base font family", result.stderr)
+
+    def test_existing_color_glyphs_and_palettes_are_preserved(self):
+        for version in (0, 1):
+            with self.subTest(version=version):
+                font = TTFont(self.sources / "Regular.ttf")
+                font["CPAL"] = buildCPAL([[(1, 0, 0, 1), (0, 1, 0, 1)],
+                                           [(0, 0, 1, 1), (1, 1, 0, 1)]])
+                color = [("ascii66", 1)] if version == 0 else {
+                    "Format": 10, "Glyph": "ascii66",
+                    "Paint": {"Format": 2, "PaletteIndex": 1, "Alpha": 1.0}}
+                font["COLR"] = buildCOLR({"ascii65": color}, version=version,
+                                        glyphMap=font.getReverseGlyphMap())
+                path = self.root / f"color-v{version}.ttf"
+                font.save(path)
+                output = self.root / f"patched-color-v{version}"
+                self.build(output, "--base-font", path)
+                patched = TTFont(output / "RunCat-Regular.ttf")
+                self.assertEqual(patched["COLR"].version, version)
+                for original, updated in zip(font["CPAL"].palettes, patched["CPAL"].palettes):
+                    self.assertEqual(updated[:2], original)
+                if version == 0:
+                    layer = patched["COLR"].ColorLayers["ascii65"][0]
+                    self.assertEqual((layer.name, layer.colorID), ("ascii66", 1))
+                else:
+                    record = patched["COLR"].table.BaseGlyphList.BaseGlyphPaintRecord[0]
+                    self.assertEqual(record.BaseGlyph, "ascii65")
+                    self.assertEqual(record.Paint.Glyph, "ascii66")
+                    self.assertEqual(record.Paint.Paint.PaletteIndex, 1)
+                    self.assertTrue(patched["COLR"].table.BaseGlyphRecordArray.BaseGlyphRecord)
 
 
 if __name__ == "__main__":

@@ -1,11 +1,11 @@
 # RunCat status animation
 
 Run `bash fonts/setup.sh` from the plugin repository root. It builds and installs the clean
-JetBrainsMono Nerd Font family and the separate `JetBrainsMono RunCat v3`
+JetBrainsMono Nerd Font family and the separate `JetBrainsMono RunCat v4`
 family. No manual downloads, pip, or virtual
 environment are needed. Python 3.11+ must be available on PATH.
 
-The font sources, pure Python fontTools wheel, exact versions, checksums, and
+The font sources, sprite pack, pure Python wheels, exact versions, checksums, and
 licenses live in [vendor](vendor/README.md). The build verifies its inputs and
 produces identical font files on repeated runs. Generated files live in
 `${XDG_DATA_HOME:-~/.local/share}/tmux-runcat/`, outside the repository.
@@ -37,7 +37,7 @@ bash fonts/setup.sh \
 
 Only the regular face is required. Supply optional faces from the same family
 when available; missing faces are left for the terminal to synthesize. The
-patched family defaults to `<original family> RunCat v3`. Use `--family
+patched family defaults to `<original family> RunCat v4`. Use `--family
 'My Mono RunCat'` to name it yourself. `--build-only` works with these options.
 Setup prints the selected family, and WSL setup passes it to Windows Terminal.
 
@@ -80,7 +80,7 @@ build; installers use that manifest to exclude files from earlier selections.
 
 Setup detects WSL and installs fonts in the current Windows user's font
 directory using Windows PowerShell. WSL Windows interoperability must be
-enabled. It selects the generated family (`JetBrainsMono RunCat v3` by default)
+enabled. It selects the generated family (`JetBrainsMono RunCat v4` by default)
 in stable Windows Terminal's defaults, WSL profiles, and profiles using the
 previous default or an existing RunCat family, preserving other
 settings. Settings and font registrations are backed up before changes.
@@ -99,7 +99,7 @@ when available. Select the printed family in your terminal. For Kitty,
 you can instead map only the cat characters while keeping another main font:
 
 ```conf
-symbol_map U+EFF0-U+EFFF,U+F600-U+F607,U+F620-U+F637 JetBrainsMono RunCat v3
+symbol_map U+EFF0-U+EFFF,U+F600-U+F607,U+F620-U+F637,U+F700-U+F8A3 JetBrainsMono RunCat v4
 ```
 
 ## Animation and font construction
@@ -117,6 +117,27 @@ helpers on reload. Animation pauses when clients detach, and the worker exits
 when the tmux server stops. The `@runcat-idle`, `@runcat-min-fps`, and
 `@runcat-max-fps` tmux options control the delay and speed.
 The maximum defaults to `0` (unlimited); a positive value sets an optional cap.
+
+The `pet-cats` skin adds stretching on wake, walking/running with typing,
+varied pause gestures, lying down, and two breathing sleeping poses. Select it
+with `set -g @runcat-skin pet-cats`; select `classic` for the original silhouette.
+New input interrupts resting gestures immediately. Pet Cats' running speed
+uses the same uncapped typing-rate calculation as the classic skin.
+
+Pet Cats uses U+F700–U+F8A3: 70 poses, each available in all three sizes. The
+runtime and font builder share `pet-cats/animations.tsv`, so the action names,
+frame counts, and glyph ordering stay in sync. Native pixels become TrueType
+outlines and COLR v0/CPAL color layers. The base glyph also contains a
+monochrome fallback. Existing base-font color palettes and COLR v0/v1 artwork
+are preserved. The two sleeping images gain the same subtle 0/4/8% breathing
+motion, without adding text or changing cell widths.
+
+The unmodified [Pet Cats Pack](https://luizmelo.itch.io/pet-cat-pack) archive,
+its CC0 notice, and the pinned pure Python PNG reader are in `vendor/`. No
+download is needed during setup. This skin uses Cat-1; the complete official
+archive is retained for provenance. The original sprite colors show in color
+font renderers, including Windows Terminal's color-glyph rendering path.
+Other terminals can use the monochrome fallback without a separate build.
 
 Medium poses occupy two adjacent characters: U+EFF0–U+EFF4 for the left halves
 and U+EFF5–U+EFF9 for the right halves. U+EFFA–U+EFFF contain three breathing

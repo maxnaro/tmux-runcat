@@ -1,9 +1,27 @@
+use crate::pet::{Activity, Pet};
 use std::collections::VecDeque;
 
 pub const SLEEP_POSE: &str = "\u{effa}\u{effb}";
 #[cfg(test)]
 const SLEEP_POSES: [&str; 3] = [SLEEP_POSE, "\u{effc}\u{effd}", "\u{effe}\u{efff}"];
 const SLEEP_STEP_SECONDS: f64 = 0.75;
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Skin {
+    #[default]
+    Classic,
+    PetCats,
+}
+
+impl Skin {
+    fn parse(value: &str) -> Self {
+        if value.trim().eq_ignore_ascii_case("pet-cats") {
+            Self::PetCats
+        } else {
+            Self::Classic
+        }
+    }
+}
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum CatSize {
@@ -43,6 +61,7 @@ pub struct Settings {
     pub minimum: f64,
     pub maximum: Option<f64>,
     pub size: CatSize,
+    pub skin: Skin,
 }
 
 impl Default for Settings {
@@ -52,12 +71,13 @@ impl Default for Settings {
             minimum: 3.0,
             maximum: None,
             size: CatSize::Medium,
+            skin: Skin::Classic,
         }
     }
 }
 
 impl Settings {
-    pub fn parse(idle: &str, minimum: &str, maximum: &str, size: &str) -> Self {
+    pub fn parse(idle: &str, minimum: &str, maximum: &str, size: &str, skin: &str) -> Self {
         fn number(value: &str, fallback: f64, low: f64, high: f64) -> f64 {
             value
                 .parse::<f64>()
@@ -76,6 +96,7 @@ impl Settings {
                 .filter(|value| value.is_finite() && *value > 0.0)
                 .map(|value| value.max(minimum)),
             size: CatSize::parse(size),
+            skin: Skin::parse(skin),
         }
     }
 }
@@ -91,6 +112,9 @@ pub struct Animation {
     pose: String,
     sleep_since: Option<f64>,
     sleep_step: usize,
+    skin: Skin,
+    state: &'static str,
+    pet: Pet,
 }
 
 impl Animation {
@@ -106,6 +130,9 @@ impl Animation {
             pose: SLEEP_POSE.to_owned(),
             sleep_since: Some(now),
             sleep_step: 0,
+            skin: Skin::Classic,
+            state: "sleep",
+            pet: Pet::new(now),
         }
     }
 
@@ -121,6 +148,30 @@ impl Animation {
         while self.samples.front().is_some_and(|(at, _)| now - at >= 1.0) {
             self.samples.pop_front();
         }
+        self.skin = settings.skin;
+        let rate: f64 = self.samples.iter().map(|(_, count)| *count as f64).sum();
+        if settings.skin == Skin::PetCats {
+            let previous_fps = self.fps;
+            if now - self.last_input >= settings.idle {
+                self.samples.clear();
+                self.fps = settings.minimum;
+            } else {
+                self.adjust_speed(rate, elapsed, settings);
+            }
+            self.pose = self.pet.update(Activity {
+                now,
+                elapsed,
+                last_input: self.last_input,
+                pressed: delta > 0,
+                rate,
+                idle: settings.idle,
+                fps: self.fps,
+                previous_fps,
+                size: settings.size,
+            });
+            self.state = self.pet.action;
+            return &self.pose;
+        }
         if now - self.last_input >= settings.idle {
             self.samples.clear();
             self.fps = settings.minimum;
@@ -128,19 +179,13 @@ impl Animation {
             let started = *self.sleep_since.get_or_insert(now);
             self.sleep_step = ((now - started) / SLEEP_STEP_SECONDS) as usize % 4;
             self.pose = settings.size.pose([0, 1, 2, 1][self.sleep_step], true);
+            self.state = "sleep";
             return &self.pose;
         }
 
         let was_sleeping = self.sleep_since.take().is_some();
 
-        let rate: f64 = self.samples.iter().map(|(_, count)| *count as f64).sum();
-        let target = settings.minimum + rate * 0.75;
-        let smoothing = 1.0 - 0.15_f64.powf(elapsed / 0.3);
-        let previous_fps = self.fps;
-        self.fps = (self.fps + (target - self.fps) * smoothing).max(settings.minimum);
-        if let Some(maximum) = settings.maximum {
-            self.fps = self.fps.min(maximum);
-        }
+        let previous_fps = self.adjust_speed(rate, elapsed, settings);
         if was_sleeping {
             self.frame = (self.frame + 1) % 5;
             self.phase = 0.0;
@@ -152,11 +197,29 @@ impl Animation {
             self.phase = frames.fract();
         }
         self.pose = settings.size.pose(self.frame, false);
+        self.state = "run";
         &self.pose
     }
 
+    fn adjust_speed(&mut self, rate: f64, elapsed: f64, settings: Settings) -> f64 {
+        let previous = self.fps;
+        let target = settings.minimum + rate * 0.75;
+        let smoothing = 1.0 - 0.15_f64.powf(elapsed / 0.3);
+        self.fps = (self.fps + (target - self.fps) * smoothing).max(settings.minimum);
+        if let Some(maximum) = settings.maximum {
+            self.fps = self.fps.min(maximum);
+        }
+        previous
+    }
+
+    pub fn state(&self) -> &'static str {
+        self.state
+    }
+
     pub fn next_update(&self) -> f64 {
-        if let Some(started) = self.sleep_since {
+        if self.skin == Skin::PetCats {
+            self.pet.deadline
+        } else if let Some(started) = self.sleep_since {
             let step = ((self.updated - started) / SLEEP_STEP_SECONDS).floor();
             started + (step + 1.0) * SLEEP_STEP_SECONDS
         } else {
@@ -213,7 +276,7 @@ mod tests {
     #[test]
     fn explicit_limits_still_apply_and_can_be_removed_live() {
         let mut cat = Animation::new(0, 0.0);
-        let capped = Settings::parse("2", "3", "12", "medium");
+        let capped = Settings::parse("2", "3", "12", "medium", "classic");
         for step in 1..=20 {
             cat.update(step * 4, step as f64 * 0.05, capped);
         }
@@ -221,18 +284,21 @@ mod tests {
         cat.update(84, 1.05, Settings::default());
         assert!(cat.fps > 12.0);
         assert_eq!(
-            Settings::parse("2", "3", "120", "medium").maximum,
+            Settings::parse("2", "3", "120", "medium", "classic").maximum,
             Some(120.0)
         );
         for maximum in ["0", "unlimited", "NaN", "inf", "bad", "-1"] {
-            assert_eq!(Settings::parse("2", "3", maximum, "medium").maximum, None);
+            assert_eq!(
+                Settings::parse("2", "3", maximum, "medium", "classic").maximum,
+                None
+            );
         }
     }
 
     #[test]
     fn delayed_updates_preserve_frame_progress() {
         let mut cat = Animation::new(0, 0.0);
-        let settings = Settings::parse("2", "10", "10", "medium");
+        let settings = Settings::parse("2", "10", "10", "medium", "classic");
         cat.update(1, 0.0, settings);
         assert_eq!(
             cat.update(1, 0.35, settings),
@@ -272,12 +338,12 @@ mod tests {
 
     #[test]
     fn settings_validate_and_apply_live() {
-        let settings = Settings::parse("NaN", "bad", "-1", "invalid");
+        let settings = Settings::parse("NaN", "bad", "-1", "invalid", "invalid");
         assert_eq!(
             (settings.idle, settings.minimum, settings.maximum),
             (2.0, 3.0, None)
         );
-        let settings = Settings::parse("0.5", "8", "20", "medium");
+        let settings = Settings::parse("0.5", "8", "20", "medium", "classic");
         let mut cat = Animation::new(0, 0.0);
         cat.update(1, 0.1, settings);
         assert!(cat.fps >= 8.0);
@@ -338,5 +404,103 @@ mod tests {
         assert_eq!(CatSize::parse(" LARGE "), CatSize::Large);
         assert_eq!(CatSize::parse("1"), CatSize::Small);
         assert_eq!(CatSize::parse("2"), CatSize::Medium);
+    }
+
+    #[test]
+    fn pet_cats_wake_walk_run_groom_lie_down_and_sleep() {
+        let settings = Settings {
+            skin: Skin::PetCats,
+            size: CatSize::Large,
+            ..Settings::default()
+        };
+        let mut cat = Animation::new(0, 0.0);
+        cat.update(0, 0.0, settings);
+        assert_eq!(cat.state(), "sleep");
+        cat.update(1, 0.1, settings);
+        assert_eq!(cat.state(), "stretch");
+        cat.update(2, 0.4, settings);
+        assert_eq!(
+            cat.state(),
+            "stretch",
+            "typing restarted or interrupted waking"
+        );
+        cat.update(3, 0.76, settings);
+        assert_eq!(cat.state(), "walk");
+        cat.update(20, 0.8, settings);
+        assert_eq!(cat.state(), "run");
+        cat.update(20, 1.21, settings);
+        assert_eq!(cat.state(), "lick-paw");
+        cat.update(20, 2.01, settings);
+        assert_eq!(cat.state(), "lie-down");
+        let sleeping = cat.update(20, 2.81, settings).to_owned();
+        assert_eq!(cat.state(), "sleep");
+        assert_ne!(cat.update(20, 3.56, settings), sleeping);
+        assert_eq!(cat.pose.chars().count(), 3);
+        cat.update(20, 32.81, settings);
+        assert_eq!(cat.state(), "deep-sleep");
+        cat.update(21, 32.82, settings);
+        assert_eq!(cat.state(), "stretch");
+    }
+
+    #[test]
+    fn pet_cats_pause_gestures_are_varied_and_interruptible() {
+        let settings = Settings {
+            skin: Skin::PetCats,
+            ..Settings::default()
+        };
+        let mut cat = Animation::new(0, 0.0);
+        cat.update(1, 0.0, settings);
+        let mut gestures = std::collections::HashSet::new();
+        for step in 1..=6 {
+            let now = step as f64 * 0.8;
+            cat.update(step + 1, now, settings);
+            assert_eq!(cat.state(), "walk");
+            cat.update(step + 1, now + 0.4, settings);
+            gestures.insert(cat.state());
+        }
+        assert_eq!(
+            gestures,
+            ["lick-paw", "idle", "itch", "lick-body", "meow", "sit"]
+                .into_iter()
+                .collect()
+        );
+        cat.update(7, 6.01, settings);
+        assert_eq!(cat.state(), "lie-down");
+        cat.update(8, 6.02, settings);
+        assert_eq!(cat.state(), "walk", "lying down delayed a new keypress");
+    }
+
+    #[test]
+    fn pet_cats_preserve_uncapped_speed_and_live_skin_changes() {
+        let mut cat = Animation::new(0, 0.0);
+        let settings = Settings {
+            skin: Skin::PetCats,
+            ..Settings::default()
+        };
+        let mut changes = 0;
+        let mut previous = String::new();
+        for step in 1..=3000 {
+            let pose = cat.update(step / 10, step as f64 * 0.001, settings);
+            if step > 2000 && pose != previous {
+                changes += 1;
+            }
+            previous = pose.to_owned();
+        }
+        assert!(changes > 60);
+        assert_eq!(cat.state(), "run");
+        assert!(cat.fps > 60.0);
+        let classic = cat.update(300, 3.01, Settings::default());
+        assert!(
+            classic
+                .chars()
+                .all(|value| (0xeff0..=0xeff9).contains(&(value as u32)))
+        );
+        let pet = cat.update(301, 3.02, settings);
+        assert!(
+            pet.chars()
+                .all(|value| (0xf700..0xf8a4).contains(&(value as u32)))
+        );
+        assert_eq!(Skin::parse(" PET-CATS "), Skin::PetCats);
+        assert_eq!(Skin::parse("invalid"), Skin::Classic);
     }
 }
