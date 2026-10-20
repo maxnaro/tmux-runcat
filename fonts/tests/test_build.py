@@ -73,7 +73,7 @@ class FontBuildTests(unittest.TestCase):
 
     def test_sleep_pose_is_bundled_and_fits_two_cells(self):
         font = TTFont(self.data / "generated/RunCat-Regular.ttf")
-        self.assertEqual(font["name"].getDebugName(1), "JetBrainsMono RunCat v4")
+        self.assertEqual(font["name"].getDebugName(1), "JetBrainsMono RunCat v5")
         for code in range(0xEFFA, 0xF000):
             name = font.getBestCmap()[code]
             glyph = font["glyf"][name]
@@ -104,12 +104,14 @@ class FontBuildTests(unittest.TestCase):
         for style in ("Regular", "Bold", "Italic", "BoldItalic"):
             font = TTFont(self.data / f"generated/RunCat-{style}.ttf")
             heights = []
-            for cells in (1, 2, 3):
+            for cells in (1, 2, 3, 4):
                 for frame in range(8):
                     if cells == 1:
                         codes = [0xF600+frame]
                     elif cells == 3:
                         codes = [0xF620+3*frame+half for half in range(3)]
+                    elif cells == 4:
+                        codes = [0xF640+4*frame+half for half in range(4)]
                     elif frame < 5:
                         codes = [0xEFF0+frame, 0xEFF5+frame]
                     else:
@@ -121,36 +123,38 @@ class FontBuildTests(unittest.TestCase):
                         self.assertEqual(font["hmtx"][name][0], 600)
                         self.assertGreaterEqual(glyph.xMin, 0)
                         self.assertLessEqual(glyph.xMax, 600)
-                        self.assertGreaterEqual(glyph.yMin, 0)
+                        self.assertGreaterEqual(glyph.yMin, font["hhea"].descent if cells == 4 else 0)
                         self.assertLessEqual(glyph.yMax, font["hhea"].ascent)
                         glyphs.append(glyph)
                     if frame == 0:
                         heights.append(max(g.yMax for g in glyphs)-min(g.yMin for g in glyphs))
             self.assertLess(heights[0], heights[1])
             self.assertLess(heights[1], heights[2])
+            self.assertGreater(heights[3], heights[2] * 1.25)
 
-    def test_pet_cats_preserve_source_colors_and_fit_all_sizes(self):
-        frames, layout, _, palette = pet_cats.poses()
+    def test_pet_cats_inherit_foreground_and_fit_all_sizes(self):
+        frames, layout, _ = pet_cats.poses()
         self.assertEqual(len(frames), 70)
-        self.assertEqual(len(layout), 420)
+        self.assertEqual(len(layout), 700)
         for style in ("Regular", "Bold", "Italic", "BoldItalic"):
             font = TTFont(self.data / f"generated/RunCat-{style}.ttf")
-            self.assertEqual(font["COLR"].version, 0)
-            self.assertEqual([(color.red, color.green, color.blue, color.alpha)
-                              for color in font["CPAL"].palettes[0]], palette)
-            for code, _, _, _ in layout:
+            self.assertNotIn("COLR", font)
+            self.assertNotIn("CPAL", font)
+            for code, cells, _, _ in layout:
                 name = font.getBestCmap()[code]
                 self.assertEqual(font["hmtx"][name][0], 600)
-                layers = font["COLR"].ColorLayers.get(name, [])
-                if font["glyf"][name].numberOfContours:
-                    self.assertTrue(layers, f"missing colors for U+{code:04X}")
-                for layer_name in [name] + [layer.name for layer in layers]:
-                    glyph = font["glyf"][layer_name]
-                    if glyph.numberOfContours:
-                        self.assertGreaterEqual(glyph.xMin, 0)
-                        self.assertLessEqual(glyph.xMax, 600)
-                        self.assertGreaterEqual(glyph.yMin, 0)
-                        self.assertLessEqual(glyph.yMax, font["hhea"].ascent)
+                glyph = font["glyf"][name]
+                if glyph.numberOfContours:
+                    self.assertGreaterEqual(glyph.xMin, 0)
+                    self.assertLessEqual(glyph.xMax, 600)
+                    self.assertGreaterEqual(glyph.yMin, font["hhea"].descent if cells == 4 else 0)
+                    self.assertLessEqual(glyph.yMax, font["hhea"].ascent)
+            def run_height(cells):
+                codes = [code for code, width, _, frame in layout if width == cells and frame == 18]
+                glyphs = [font["glyf"][font.getBestCmap()[code]] for code in codes]
+                glyphs = [glyph for glyph in glyphs if glyph.numberOfContours]
+                return max(glyph.yMax for glyph in glyphs) - min(glyph.yMin for glyph in glyphs)
+            self.assertGreater(run_height(4), run_height(3) * 1.3)
 
     def test_pet_sleep_breathes_without_a_text_indicator_or_baseline_shift(self):
         font = TTFont(self.data / "generated/RunCat-Regular.ttf")
@@ -249,14 +253,15 @@ class CustomFontBuildTests(unittest.TestCase):
                 self.assertEqual(patched["OS/2"].usLastCharIndex, 0xF8A3)
                 self.assertEqual(original["hhea"].ascent, patched["hhea"].ascent)
                 self.assertEqual(original["hhea"].descent, patched["hhea"].descent)
-                for code in [*range(0xEFF0, 0xF000), *range(0xF600, 0xF608), *range(0xF620, 0xF638), *range(0xF700, 0xF8A4)]:
+                for code in [*range(0xE400, 0xE518), *range(0xEFF0, 0xF000), *range(0xF600, 0xF608), *range(0xF620, 0xF638), *range(0xF640, 0xF660), *range(0xF700, 0xF8A4)]:
                     name = patched.getBestCmap()[code]
                     glyph = patched["glyf"][name]
                     self.assertEqual(patched["hmtx"][name][0], 1234)
                     if glyph.numberOfContours:
                         self.assertGreaterEqual(glyph.xMin, 0)
                         self.assertLessEqual(glyph.xMax, 1234)
-                        self.assertGreaterEqual(glyph.yMin, 0)
+                        xlarge = 0xE400 <= code < 0xE518 or 0xF640 <= code < 0xF660
+                        self.assertGreaterEqual(glyph.yMin, -500 if xlarge else 0)
                         self.assertLessEqual(glyph.yMax, 1900)
 
     def test_custom_build_is_reproducible(self):
@@ -283,7 +288,7 @@ class CustomFontBuildTests(unittest.TestCase):
     def test_single_face_derives_family_and_supports_unicode_override(self):
         output = self.root / "single face"
         self.build(output, "--base-font", self.sources / "Regular.ttf")
-        self.assertEqual((output / "font-family.txt").read_text(), "Test Mono RunCat v4\n")
+        self.assertEqual((output / "font-family.txt").read_text(), "Test Mono RunCat v5\n")
         self.build(output, "--base-font", self.sources / "Regular.ttf", "--family", "猫 Mono RunCat")
         font = TTFont(output / "RunCat-Regular.ttf")
         self.assertEqual(font["name"].getDebugName(1), "猫 Mono RunCat")
@@ -346,6 +351,8 @@ class CustomFontBuildTests(unittest.TestCase):
                 self.build(output, "--base-font", path)
                 patched = TTFont(output / "RunCat-Regular.ttf")
                 self.assertEqual(patched["COLR"].version, version)
+                self.assertEqual(patched.getTableData("COLR"), font.getTableData("COLR"))
+                self.assertEqual(patched.getTableData("CPAL"), font.getTableData("CPAL"))
                 for original, updated in zip(font["CPAL"].palettes, patched["CPAL"].palettes):
                     self.assertEqual(updated[:2], original)
                 if version == 0:
@@ -356,7 +363,6 @@ class CustomFontBuildTests(unittest.TestCase):
                     self.assertEqual(record.BaseGlyph, "ascii65")
                     self.assertEqual(record.Paint.Glyph, "ascii66")
                     self.assertEqual(record.Paint.Paint.PaletteIndex, 1)
-                    self.assertTrue(patched["COLR"].table.BaseGlyphRecordArray.BaseGlyphRecord)
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-"""Convert the bundled CC0 Pet Cats pixels to monochrome and color outlines."""
+"""Convert the bundled CC0 Pet Cats pixels to foreground-colored outlines."""
 
 from pathlib import Path
 import zipfile
@@ -6,6 +6,7 @@ import zipfile
 import png
 
 BASE = 0xF700
+XLARGE_BASE = 0xE400
 MANIFEST = Path(__file__).with_name("pet-cats") / "animations.tsv"
 
 
@@ -44,28 +45,24 @@ def poses():
             for frame in range(count):
                 source = 0 if mode == "breathing" else frame
                 pixels = [row[source*50:(source+1)*50] for row in rows]
-                colors = sorted({color for row in pixels for color in row if color[3]})
-                layers = [(color, rectangles(pixels, lambda pixel, color=color: pixel == color))
-                          for color in colors]
                 # The first cat has green eyes against orange fur. Keep these
-                # as cutouts when a terminal uses the monochrome fallback.
+                # as cutouts so the cat can inherit the status foreground.
                 mono = rectangles(pixels, lambda pixel: pixel[3] and pixel[1] < pixel[0]*0.95)
                 if mode == "breathing":
-                    floor = min(y for _, contours in layers for contour in contours for _, y in contour)
+                    floor = min(y for contour in mono for _, y in contour)
                     def breathe(contours):
                         return [[(x, floor + (y-floor)*(1+0.04*frame)) for x, y in contour]
                                 for contour in contours]
                     mono = breathe(mono)
-                    layers = [(color, breathe(contours)) for color, contours in layers]
-                frames.append({"mono": mono, "layers": layers, "action": name})
+                frames.append({"mono": mono, "action": name})
     # One common coordinate system for every action prevents accidental
     # resizing or baseline shifts between walking, sitting, and sleeping.
-    points = [point for frame in frames for _, contours in frame["layers"]
-              for contour in contours for point in contour]
+    points = [point for frame in frames for contour in frame["mono"] for point in contour]
     bounds = (min(x for x, _ in points), max(x for x, _ in points),
               min(y for _, y in points), max(y for _, y in points))
-    palette = sorted({color for frame in frames for color, _ in frame["layers"]})
     layout = [(BASE + index*6 + offset + half, cells, half, index)
               for index in range(len(frames))
               for cells, offset in ((1, 0), (2, 1), (3, 3)) for half in range(cells)]
-    return frames, layout, bounds, palette
+    layout += [(XLARGE_BASE + index*4 + half, 4, half, index)
+               for index in range(len(frames)) for half in range(4)]
+    return frames, layout, bounds

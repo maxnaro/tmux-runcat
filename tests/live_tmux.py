@@ -88,6 +88,8 @@ def main():
                 return 0xF605 <= ord(text[0]) <= 0xF607
             if len(text) == 3:
                 return ord(text[0]) in (0xF62F, 0xF632, 0xF635)
+            if len(text) == 4:
+                return ord(text[0]) in (0xF654, 0xF658, 0xF65C)
             return text in SLEEP_POSES
 
         try:
@@ -174,7 +176,7 @@ def main():
             wait_for(lambda: state() == "sleep", "Pet Cats did not sleep after inactivity")
             first = visible_pose()
             wait_for(lambda: visible_pose() != first, "Pet Cats did not breathe while sleeping", timeout=1)
-            for size, width in (("small", 1), ("large", 3), ("medium", 2)):
+            for size, width in (("small", 1), ("large", 3), ("xlarge", 4), ("medium", 2)):
                 run("set-option", "-t", "runcat-live", "@runcat-size", size)
                 wait_for(lambda: len(visible_pose()) == width, "Pet Cats size did not apply")
                 assert state() == "sleep", "resizing woke Pet Cats"
@@ -184,7 +186,7 @@ def main():
             # Resizing applies live in both states without changing width
             # during the animation or interfering with the application's input.
             run("set-option", "-t", "runcat-live", "@runcat-idle", "0.25")
-            for size, width in (("small", 1), ("large", 3), ("medium", 2)):
+            for size, width in (("small", 1), ("large", 3), ("xlarge", 4), ("medium", 2)):
                 run("set-option", "-t", "runcat-live", "@runcat-size", size)
                 wait_for(lambda: len(visible_pose()) == width, "live size update did not apply")
                 assert sleeping(), "resizing woke an idle cat"
