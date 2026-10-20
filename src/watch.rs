@@ -64,15 +64,21 @@ pub fn run(socket: &OsStr, pid: &OsStr, generation: &str) -> io::Result<()> {
     let start = Instant::now();
     let mut animations: HashMap<String, Animation> = HashMap::new();
     let mut published: HashMap<String, String> = HashMap::new();
+    let list_clients = format!("list-clients -F '{FORMAT}'");
     loop {
         let output = tmux.output([
-            "display-message",
-            "-p",
-            "#{@runcat-generation}",
+            // A fresh server may still be processing its startup config and
+            // have no session yet. Query the global option without a target.
+            "show-options",
+            "-gv",
+            "@runcat-generation",
             ";",
-            "list-clients",
+            // list-clients also requires a session, even without -t. The
+            // format-only conditional can safely run before the first one.
+            "if-shell",
             "-F",
-            FORMAT,
+            "#{session_id}",
+            &list_clients,
         ])?;
         let text = String::from_utf8_lossy(&output.stdout);
         let mut lines = text.lines();

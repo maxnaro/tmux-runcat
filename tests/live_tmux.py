@@ -26,6 +26,7 @@ def main():
         environment.pop("TMUX", None)
         config = directory / "tmux.conf"
         config.write_text(
+            "set -s exit-empty off\n"
             "set -g status-position top\nset -g mouse on\nset -s escape-time 0\n"
             "set -g status-right '#{@runcat-frame}'\n"
             "set -g @runcat-min-fps 4\n"
@@ -74,7 +75,16 @@ def main():
             return result.stdout.strip() if result.returncode == 0 else ""
 
         try:
-            run("-f", str(config), "new-session", "-d", "-s", "runcat-live", f"python3 {capture}")
+            # Load before any session exists, as happens when other plugins
+            # continue processing the startup config after runcat is loaded.
+            run("-f", str(config), "start-server")
+            wait_for(lambda: "watch" in run("show-messages", "-J"), "worker did not start")
+            time.sleep(0.3)
+            jobs = run("show-messages", "-J")
+            assert "tmux-runcat" in jobs and "watch" in jobs, (
+                "worker exited before the first session was created\n" + jobs + "\n" + run("show-messages")
+            )
+            run("new-session", "-d", "-s", "runcat-live", f"python3 {capture}")
             client = subprocess.Popen(command + ["attach-session", "-t", "runcat-live"],
                                       stdin=slave, stdout=slave, stderr=slave,
                                       env=environment, start_new_session=True)
@@ -144,7 +154,7 @@ def main():
                                       capture_output=True, text=True, env=environment)
             assert rejected.returncode != 0 and "already bound" in rejected.stderr
             assert "custom-binding" in run("list-keys", "-T", "root", "Any")
-            print("PASS: idle/wake, key counts, exact key forwarding, mouse forwarding, prefix shortcut, and one worker after reload")
+            print("PASS: cold startup without a session, idle/wake, key forwarding, mouse events, shortcuts, live settings, and reloads")
         finally:
             subprocess.run(command + ["kill-server"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             if client:
