@@ -1,7 +1,8 @@
 # tmux-runcat
 
 A small cat for your tmux status bar. It wakes when you type, runs faster as
-your typing speeds up, slows down, and curls up to sleep after two idle seconds.
+your typing speeds up without a speed cap, slows down, and curls up to sleep
+after two idle seconds.
 Each session has independent activity. When sleeping, the cat breathes gently
 over a three-second cycle. Choose a one-, two-, or three-cell cat with
 `@runcat-size`. Its width stays fixed in both states at the selected size.
@@ -74,15 +75,24 @@ can also be changed with `set-option` while the animation is running.
 | --- | --- | --- |
 | `@runcat-idle` | `2` | Idle seconds before sleeping (0.1–3600) |
 | `@runcat-min-fps` | `3` | Minimum running speed (1–20 FPS) |
-| `@runcat-max-fps` | `12` | Maximum running speed (minimum–20 FPS) |
+| `@runcat-max-fps` | `0` | `0` or `unlimited` removes the cap; a positive FPS value sets an optional limit |
 | `@runcat-size` | `medium` | `small` (1 cell), `medium` (2 cells), or `large` (3 cells) |
 
 ```tmux
 set -g @runcat-idle 3
 set -g @runcat-min-fps 4
-set -g @runcat-max-fps 15
+set -g @runcat-max-fps 0
 set -g @runcat-size medium
 ```
+
+Running speed follows the last second's key rate: the minimum plus 0.75 FPS
+per key per second, with smooth acceleration and deceleration. There is no
+default maximum. Frames follow their own deadlines rather than a fixed 20 Hz
+update loop, with elapsed animation time preserved when a redraw is late.
+Actual redraw throughput depends on tmux and the terminal.
+
+After updating an existing server from an older version, run
+`tmux set -g @runcat-max-fps 0` to remove its previously saved limit.
 
 Size updates apply immediately, including while sleeping. Numeric aliases
 `1`, `2`, and `3` are accepted; invalid values use `medium`. All sizes share
@@ -127,8 +137,9 @@ python3 tests/live_tmux.py
 bash -n runcat.tmux fonts/setup.sh
 ```
 
-The live test starts an isolated tmux server and PTY, checking input forwarding,
-idle/wake behavior, mouse events, prefix shortcuts, live settings, and reloads.
+The live test starts an isolated tmux server and PTY, checking fast redraws,
+input forwarding, idle/wake behavior, mouse events, prefix shortcuts, live
+settings, and reloads.
 Font tests verify repeatable builds, preserved character mappings, spacing,
 font features, custom base fonts, and running/sleeping glyph geometry.
 On Windows, `powershell.exe -NoProfile -ExecutionPolicy Bypass -File

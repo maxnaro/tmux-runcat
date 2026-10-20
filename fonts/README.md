@@ -105,8 +105,8 @@ symbol_map U+EFF0-U+EFFF,U+F600-U+F607,U+F620-U+F637 JetBrainsMono RunCat v3
 ## Animation and font construction
 
 Place `#{@runcat-frame}` in your status format. The Rust
-worker runs at 3–12 FPS according to the last second of
-typing, slows smoothly, and shows a curled-up sleeping pose after two idle
+worker runs faster according to the last second of typing with no default
+speed cap, slows smoothly, and shows a curled-up sleeping pose after two idle
 seconds. A native tmux `Any` binding counts ordinary forwarded keys, then
 passes the original input to the application. Existing specific bindings keep
 precedence; mouse input is forwarded separately, and paste does not inflate
@@ -116,6 +116,7 @@ Each session has its own activity and pose. A per-server lock prevents duplicate
 helpers on reload. Animation pauses when clients detach, and the worker exits
 when the tmux server stops. The `@runcat-idle`, `@runcat-min-fps`, and
 `@runcat-max-fps` tmux options control the delay and speed.
+The maximum defaults to `0` (unlimited); a positive value sets an optional cap.
 
 Medium poses occupy two adjacent characters: U+EFF0–U+EFF4 for the left halves
 and U+EFF5–U+EFF9 for the right halves. U+EFFA–U+EFFF contain three breathing
