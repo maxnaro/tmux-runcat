@@ -36,6 +36,19 @@ On WSL, setup installs fonts on Windows and selects the combined font in stable
 Windows Terminal. On Linux, select `JetBrainsMono RunCat v3` in your terminal.
 See [font setup](fonts/README.md) for details and backups.
 
+To use your own base font, supply a regular monospaced static TrueType file:
+
+```sh
+bash fonts/setup.sh --base-font '/path/to/MyMono-Regular.ttf'
+```
+
+Setup creates a separate `<original family> RunCat v3` family, using the base
+font's spacing and height for all cat sizes. Add `--bold-font`, `--italic-font`,
+and `--bold-italic-font` for matching faces, or `--family` to choose the output
+family name. These are font setup options; terminal fonts cannot be selected
+through a tmux option. See [custom fonts](fonts/README.md#custom-base-fonts)
+for environment variables, supported formats, and reproducible setup.
+
 Include `#{@runcat-frame}` wherever you want the cat, and load the plugin after
 your status settings:
 
@@ -117,7 +130,10 @@ bash -n runcat.tmux fonts/setup.sh
 The live test starts an isolated tmux server and PTY, checking input forwarding,
 idle/wake behavior, mouse events, prefix shortcuts, live settings, and reloads.
 Font tests verify repeatable builds, preserved character mappings, spacing,
-font features, and running/sleeping glyph geometry. Build outputs stay in
+font features, custom base fonts, and running/sleeping glyph geometry.
+On Windows, `powershell.exe -NoProfile -ExecutionPolicy Bypass -File
+fonts/tests/test-windows-terminal.ps1` checks terminal settings using temporary
+files. Build outputs stay in
 `target/` and the user's data directory. Set `RUNCAT_BINARY` to run an alternate
 executable through the shell entry point.
 

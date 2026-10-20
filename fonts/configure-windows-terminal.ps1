@@ -1,6 +1,9 @@
-param([string]$SettingsPath = (Join-Path $env:LOCALAPPDATA 'Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState\settings.json'))
+param(
+    [string]$SettingsPath = (Join-Path $env:LOCALAPPDATA 'Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState\settings.json'),
+    [string]$FontFamily = (Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $PSScriptRoot 'font-family.txt')).Trim()
+)
 $ErrorActionPreference = 'Stop'
-$fontFamily = (Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'font-family.txt')).Trim()
+if ([string]::IsNullOrWhiteSpace($FontFamily)) { throw 'FontFamily must not be empty.' }
 if (Test-Path -LiteralPath $settingsPath) {
     $settings = [IO.File]::ReadAllText($settingsPath)
     # Windows Terminal accepts JSON with comments and trailing commas. Keep
@@ -20,9 +23,11 @@ if (Test-Path -LiteralPath $settingsPath) {
         $config.profiles | Add-Member -NotePropertyName defaults -NotePropertyValue ([pscustomobject]@{})
     }
     $targets = @($config.profiles.defaults)
+    $previousDefault = $config.profiles.defaults.font.face
     foreach ($profile in $config.profiles.list) {
         if ($profile.source -match '^(Microsoft\.WSL|Windows\.Terminal\.Wsl)$' -or
-            $profile.font.face -match '^JetBrainsMono (Nerd Font|RunCat)') {
+            $profile.font.face -match '(^JetBrainsMono Nerd Font|RunCat)' -or
+            ($previousDefault -and $profile.font.face -eq $previousDefault)) {
             $targets += $profile
         }
     }
