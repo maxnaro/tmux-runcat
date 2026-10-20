@@ -1,0 +1,13 @@
+# name	file	frames	mode
+idle	Idle	10	loop
+walk	Walk	8	loop
+run	Run	8	loop
+meow	Meow	4	once
+lie-down	Laying	8	once
+itch	Itch	2	loop
+sleep	Sleeping1	3	breathing
+deep-sleep	Sleeping2	3	breathing
+sit	Sitting	1	loop
+lick-paw	Licking 1	5	loop
+lick-body	Licking 2	5	loop
+stretch	Stretching	13	once

@@ -79,6 +79,9 @@ def main():
         def visible_pose():
             return re.sub(r"#\[[^]]*\]", "", pose())
 
+        def state():
+            return run("show-option", "-v", "-t", "runcat-live", "@runcat-state")
+
         def sleeping():
             text = visible_pose()
             if len(text) == 1:
@@ -149,6 +152,35 @@ def main():
             assert changes > 20, ("fast typing still has a frame-rate cap", changes)
             wait_for(sleeping, "cat did not sleep after fast typing")
 
+            # Pet Cats uses the same key forwarding and activity counter, with
+            # distinct wake, locomotion, pause, and bedtime transitions.
+            run("set-option", "-t", "runcat-live", "@runcat-skin", "pet-cats")
+            wait_for(lambda: all(0xF700 <= ord(value) < 0xF8A4 for value in visible_pose())
+                     and bool(visible_pose()), "Pet Cats skin did not apply live")
+            wait_for(lambda: state() == "sleep", "Pet Cats did not start asleep")
+            before = capture.with_suffix(".input").read_bytes()
+            observed = set()
+            for _ in range(5):
+                os.write(master, b"z")
+                time.sleep(0.2)
+                observed.add(state())
+            assert {"stretch", "walk"} <= observed, ("Pet Cats did not wake and walk", observed)
+            assert capture.with_suffix(".input").read_bytes() == before + b"z"*5
+            run("set-option", "-F", "-t", "runcat-live", "@runcat-keys", "#{e|+:#{@runcat-keys},120}")
+            wait_for(lambda: state() == "run", "Pet Cats did not run with faster typing")
+            wait_for(lambda: state() in {"lick-paw", "idle", "itch", "lick-body", "meow", "sit"},
+                     "Pet Cats did not show a pause gesture")
+            wait_for(lambda: state() == "lie-down", "Pet Cats did not lie down before sleeping")
+            wait_for(lambda: state() == "sleep", "Pet Cats did not sleep after inactivity")
+            first = visible_pose()
+            wait_for(lambda: visible_pose() != first, "Pet Cats did not breathe while sleeping", timeout=1)
+            for size, width in (("small", 1), ("large", 3), ("medium", 2)):
+                run("set-option", "-t", "runcat-live", "@runcat-size", size)
+                wait_for(lambda: len(visible_pose()) == width, "Pet Cats size did not apply")
+                assert state() == "sleep", "resizing woke Pet Cats"
+            run("set-option", "-t", "runcat-live", "@runcat-skin", "classic")
+            wait_for(sleeping, "switching back to the classic skin did not apply")
+
             # Resizing applies live in both states without changing width
             # during the animation or interfering with the application's input.
             run("set-option", "-t", "runcat-live", "@runcat-idle", "0.25")
@@ -204,7 +236,7 @@ def main():
                                       capture_output=True, text=True, env=environment)
             assert rejected.returncode != 0 and "already bound" in rejected.stderr
             assert "custom-binding" in run("list-keys", "-T", "root", "Any")
-            print("PASS: uncapped speed, cold startup, breathing, all three sizes, idle/wake, key forwarding, mouse events, shortcuts, and reloads")
+            print("PASS: Pet Cats states, live skin/size changes, uncapped speed, breathing, key forwarding, mouse, shortcuts, and reloads")
         finally:
             subprocess.run(command + ["kill-server"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             if client:

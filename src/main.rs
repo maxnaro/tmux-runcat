@@ -1,5 +1,6 @@
 mod animation;
 mod load;
+mod pet;
 mod tmux;
 mod watch;
 

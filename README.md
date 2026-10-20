@@ -3,7 +3,9 @@
 A small cat for your tmux status bar. It wakes when you type, runs faster as
 your typing speeds up without a speed cap, slows down, and curls up to sleep
 after two idle seconds.
-Each session has independent activity. When sleeping, the cat breathes gently
+Each session has independent activity. Choose the classic silhouette or the
+expressive Pet Cats skin, which stretches, walks, runs, grooms, meows, and
+lies down before sleeping. When sleeping, the cat breathes gently
 over a three-second cycle. Choose a one-, two-, or three-cell cat with
 `@runcat-size`. Its width stays fixed in both states at the selected size.
 
@@ -30,11 +32,11 @@ bash fonts/setup.sh
 
 The pinned font sources and build tools are bundled, so building the binary
 and fonts needs no network after cloning. Font setup installs both the clean
-JetBrainsMono Nerd Font family and `JetBrainsMono RunCat v3`, which adds
+JetBrainsMono Nerd Font family and `JetBrainsMono RunCat v4`, which adds
 the running and sleeping poses while preserving existing glyphs and spacing.
 
 On WSL, setup installs fonts on Windows and selects the combined font in stable
-Windows Terminal. On Linux, select `JetBrainsMono RunCat v3` in your terminal.
+Windows Terminal. On Linux, select `JetBrainsMono RunCat v4` in your terminal.
 See [font setup](fonts/README.md) for details and backups.
 
 To use your own base font, supply a regular monospaced static TrueType file:
@@ -43,7 +45,7 @@ To use your own base font, supply a regular monospaced static TrueType file:
 bash fonts/setup.sh --base-font '/path/to/MyMono-Regular.ttf'
 ```
 
-Setup creates a separate `<original family> RunCat v3` family, using the base
+Setup creates a separate `<original family> RunCat v4` family, using the base
 font's spacing and height for all cat sizes. Add `--bold-font`, `--italic-font`,
 and `--bold-italic-font` for matching faces, or `--family` to choose the output
 family name. These are font setup options; terminal fonts cannot be selected
@@ -77,13 +79,39 @@ can also be changed with `set-option` while the animation is running.
 | `@runcat-min-fps` | `3` | Minimum running speed (1–20 FPS) |
 | `@runcat-max-fps` | `0` | `0` or `unlimited` removes the cap; a positive FPS value sets an optional limit |
 | `@runcat-size` | `medium` | `small` (1 cell), `medium` (2 cells), or `large` (3 cells) |
+| `@runcat-skin` | `classic` | `classic` or `pet-cats` |
 
 ```tmux
 set -g @runcat-idle 3
 set -g @runcat-min-fps 4
 set -g @runcat-max-fps 0
 set -g @runcat-size medium
+set -g @runcat-skin pet-cats
 ```
+
+The Pet Cats skin uses the first cat from [Pet Cats Pack by LuizMelo](https://luizmelo.itch.io/pet-cat-pack),
+bundled under CC0. Install the v4 fonts before selecting it. The original
+sprite colors are stored as COLR/CPAL font layers; terminals with color-font
+support show the original orange cat, while other terminals use a monochrome
+silhouette with eye cutouts. Both skins work with custom base fonts and all
+three sizes. Skin changes apply live.
+
+| Activity | Pet Cats behavior |
+| --- | --- |
+| First key after sleep | A short stretch, with continued typing still counted |
+| Gentle typing | Walk |
+| 8+ keys in the last second | Run, with uncapped speed following typing rate |
+| Brief pause | Rotate between grooming, idle, scratching, meowing, and sitting |
+| Approaching the idle timeout | Lie down |
+| Idle timeout | Sleep with subtle breathing |
+| Another 30 seconds of rest | Alternate sleeping pose |
+
+The sleep timeout is still `@runcat-idle` (2 seconds by default). Wake and
+bedtime transitions shorten for smaller timeout values. New input interrupts
+pause gestures and lying down immediately. There is no Zzz text or audio.
+Reactions use activity counts; no special Enter or Backspace bindings are added.
+The current action is exposed as `#{@runcat-state}` for optional status formats
+and troubleshooting.
 
 Running speed follows the last second's key rate: the minimum plus 0.75 FPS
 per key per second, with smooth acceleration and deceleration. There is no
@@ -137,7 +165,8 @@ python3 tests/live_tmux.py
 bash -n runcat.tmux fonts/setup.sh
 ```
 
-The live test starts an isolated tmux server and PTY, checking fast redraws,
+The live test starts an isolated tmux server and PTY, checking Pet Cats actions,
+live skin changes, fast redraws,
 input forwarding, idle/wake behavior, mouse events, prefix shortcuts, live
 settings, and reloads.
 Font tests verify repeatable builds, preserved character mappings, spacing,

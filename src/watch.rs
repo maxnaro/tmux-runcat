@@ -9,7 +9,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 const POLL: Duration = Duration::from_millis(50);
-const FORMAT: &str = "#{client_name}\t#{session_id}\t#{@runcat-keys}\t#{@runcat-idle}\t#{@runcat-min-fps}\t#{@runcat-max-fps}\t#{@runcat-size}";
+const FORMAT: &str = "#{client_name}\t#{session_id}\t#{@runcat-keys}\t#{@runcat-idle}\t#{@runcat-min-fps}\t#{@runcat-max-fps}\t#{@runcat-size}\t#{@runcat-skin}";
 
 struct Session {
     count: u64,
@@ -21,7 +21,7 @@ fn parse_clients(lines: impl Iterator<Item = String>) -> HashMap<String, Session
     let mut sessions: HashMap<String, Session> = HashMap::new();
     for line in lines {
         let fields: Vec<_> = line.split('\t').collect();
-        if fields.len() != 7 {
+        if fields.len() != 8 {
             continue;
         }
         sessions
@@ -29,7 +29,7 @@ fn parse_clients(lines: impl Iterator<Item = String>) -> HashMap<String, Session
             .or_insert_with(|| Session {
                 count: fields[2].parse().unwrap_or(0),
                 clients: Vec::new(),
-                settings: Settings::parse(fields[3], fields[4], fields[5], fields[6]),
+                settings: Settings::parse(fields[3], fields[4], fields[5], fields[6], fields[7]),
             })
             .clients
             .push(fields[0].to_owned());
@@ -115,6 +115,12 @@ pub fn run(socket: &OsStr, pid: &OsStr, generation: &str) -> io::Result<()> {
                 session.clone(),
                 "@runcat-frame".to_owned(),
                 pose.clone(),
+                ";".to_owned(),
+                "set-option".to_owned(),
+                "-t".to_owned(),
+                session.clone(),
+                "@runcat-state".to_owned(),
+                animation.state().to_owned(),
             ]);
             for client in activity.clients {
                 update.extend([
@@ -146,9 +152,9 @@ mod tests {
     fn clients_are_grouped_by_session_with_independent_counts() {
         let sessions = parse_clients(
             [
-                "/dev/pts/1\t$1\t4\t2\t3\t12\tmedium",
-                "/dev/pts/2\t$1\t4\t2\t3\t12\tmedium",
-                "/dev/pts/3\t$2\t9\t1\t4\t8\tlarge",
+                "/dev/pts/1\t$1\t4\t2\t3\t12\tmedium\tclassic",
+                "/dev/pts/2\t$1\t4\t2\t3\t12\tmedium\tclassic",
+                "/dev/pts/3\t$2\t9\t1\t4\t8\tlarge\tpet-cats",
                 "invalid",
             ]
             .into_iter()
@@ -158,6 +164,10 @@ mod tests {
         assert_eq!(sessions["$1"].clients.len(), 2);
         assert_eq!(sessions["$2"].count, 9);
         assert_eq!(sessions["$2"].settings.idle, 1.0);
+        assert_eq!(
+            sessions["$2"].settings.skin,
+            crate::animation::Skin::PetCats
+        );
         assert_eq!(
             sessions["$2"].settings.size,
             crate::animation::CatSize::Large
