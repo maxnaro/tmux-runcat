@@ -1,19 +1,21 @@
 #!/usr/bin/env python3
-"""Add the cat poses to copies of JetBrainsMono NF. Requires fonttools."""
+"""Add cat poses to static monospaced TrueType fonts. Requires fonttools."""
 
 import argparse
 import json
 from pathlib import Path
+import re
 import shutil
+import unicodedata
 
 from fontTools.pens.basePen import BasePen
 from fontTools.pens.ttGlyphPen import TTGlyphPen
 from fontTools.svgLib.path import SVGPath
-from fontTools.ttLib import TTFont
+from fontTools.ttLib import TTFont, TTLibError
 
 
 class OutlinePen(BasePen):
-    """Flatten curves before clipping the silhouette into two terminal cells."""
+    """Flatten curves before clipping the silhouette into terminal cells."""
 
     def __init__(self, glyphs):
         super().__init__(glyphs)
@@ -65,18 +67,7 @@ def contour_area(points):
                for i in range(len(points)))
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("source", type=Path, help="extracted JetBrainsMono Nerd Font release")
-    parser.add_argument("output", type=Path, help="directory for Windows installer font files")
-    parser.add_argument("--cat-only", action="store_true", help="omit clean NF family files")
-    args = parser.parse_args()
-    args.output.mkdir(parents=True, exist_ok=True)
-    # Include a clean installation of the complete official font family.
-    if not args.cat_only:
-        for path in args.source.glob("*.ttf"):
-            shutil.copyfile(path, args.output / ("NF-3.5.1-" + path.name))
-
+def cat_poses():
     cat = TTFont(Path(__file__).with_name("runcat-tmux.ttf"))
     cat_glyphs = cat.getGlyphSet()
     outlines = []
@@ -111,21 +102,125 @@ def main():
     layout += [(0xF600+frame, 1, 0, frame) for frame in range(8)]
     layout += [(0xF620+frame*3+half, 3, half, frame)
                for frame in range(8) for half in range(3)]
-    family = Path(__file__).with_name("font-family.txt").read_text().strip()
-    for style in ("Regular", "Bold", "Italic", "BoldItalic"):
-        font = TTFont(args.source / f"JetBrainsMonoNerdFont-{style}.ttf", recalcTimestamp=False)
+    return poses, sorted(layout), (xmin, xmax, ymin, ymax)
+
+
+def validate_font(path, layout):
+    """Fail before producing output if a base cannot safely accept the poses."""
+    font = TTFont(path, recalcTimestamp=False)
+    if font.flavor or "fvar" in font or "glyf" not in font:
+        raise ValueError(f"{path}: use a static TrueType font with glyf outlines (not variable, CFF, or WOFF)")
+    if any(table not in font for table in ("OS/2", "hhea", "hmtx", "head", "cmap", "name")):
+        raise ValueError(f"{path}: missing required TrueType metrics or character tables")
+    cmap = font.getBestCmap() or {}
+    if any(code not in cmap for code in range(32, 127)):
+        raise ValueError(f"{path}: base font must contain printable ASCII, including space")
+    advance = font["hmtx"][cmap[32]][0]
+    if advance <= font["head"].unitsPerEm * 0.08 or any(font["hmtx"][cmap[code]][0] != advance for code in range(33, 127)):
+        raise ValueError(f"{path}: base font must be monospaced (printable ASCII widths differ)")
+    if font["hhea"].ascent <= font["head"].unitsPerEm * 0.08:
+        raise ValueError(f"{path}: no usable ascent for the cat glyphs")
+    for code, _, _, _ in layout:
+        if any(code in table.cmap for table in font["cmap"].tables if table.isUnicode()):
+            raise ValueError(f"{path}: cat codepoint U+{code:04X} collides with an existing glyph")
+        if f"runcat{code:04x}" in font.getGlyphOrder():
+            raise ValueError(f"{path}: already contains RunCat glyphs")
+    return font
+
+
+def rename_font(font, family, style):
+    face = {"BoldItalic": "Bold Italic"}.get(style, style)
+    # PostScript names are ASCII and at most 63 characters, even for families
+    # whose display names contain spaces or non-ASCII characters.
+    ascii_family = unicodedata.normalize("NFKD", family).encode("ascii", "ignore").decode()
+    postscript = re.sub(r"[^A-Za-z0-9-]", "", ascii_family)[:48] or "RunCat"
+    names = {1: family, 2: face, 3: f"{family}-{style}-runcat-v3",
+             4: f"{family} {face}", 6: f"{postscript}-{style}",
+             16: family, 17: face, 18: f"{family} {face}", 21: family, 22: face}
+    for record in list(font["name"].names):
+        if record.nameID in names:
+            try:
+                record.string = names[record.nameID].encode(record.getEncoding())
+            except UnicodeEncodeError:
+                font["name"].names.remove(record)
+    for name_id, value in names.items():
+        font["name"].setName(value, name_id, 3, 1, 0x409)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("source", type=Path, help="extracted default JetBrainsMono Nerd Font release")
+    parser.add_argument("output", type=Path, help="directory for installer font files")
+    parser.add_argument("--cat-only", action="store_true", help="omit clean default NF family files")
+    parser.add_argument("--base-font", type=Path, help="custom regular monospaced static TTF")
+    parser.add_argument("--bold-font", type=Path)
+    parser.add_argument("--italic-font", type=Path)
+    parser.add_argument("--bold-italic-font", type=Path)
+    parser.add_argument("--family", help="display name of the patched family")
+    args = parser.parse_args()
+    if not args.base_font and any((args.bold_font, args.italic_font, args.bold_italic_font)):
+        parser.error("optional font faces require --base-font")
+    sources = {"Regular": args.base_font} if args.base_font else {
+        style: args.source / f"JetBrainsMonoNerdFont-{style}.ttf"
+        for style in ("Regular", "Bold", "Italic", "BoldItalic")
+    }
+    for style, path in (("Bold", args.bold_font), ("Italic", args.italic_font),
+                        ("BoldItalic", args.bold_italic_font)):
+        if path:
+            sources[style] = path
+    poses, layout, (xmin, xmax, ymin, ymax) = cat_poses()
+    fonts = {}
+    try:
+        for style, path in sources.items():
+            fonts[style] = validate_font(path, layout)
+        if args.family is not None:
+            family = args.family.strip()
+        elif args.base_font:
+            names = fonts["Regular"]["name"]
+            base_family = names.getDebugName(16) or names.getDebugName(1) or args.base_font.stem
+            family = f"{base_family} RunCat v3"
+        else:
+            family = Path(__file__).with_name("font-family.txt").read_text().strip()
+        if not family or any(ord(char) < 32 or ord(char) == 127 for char in family):
+            raise ValueError("font family must be nonempty and contain no control characters")
+        # Mixing unrelated faces gives a font family inconsistent spacing and
+        # style selection. Users can supply only Regular when no other faces exist.
+        regular = fonts["Regular"]
+        base_name = regular["name"].getDebugName(16) or regular["name"].getDebugName(1)
+        for style, font in fonts.items():
+            name = font["name"].getDebugName(16) or font["name"].getDebugName(1)
+            if name != base_name:
+                raise ValueError(f"{sources[style]}: all faces must belong to the same base font family")
+    except (OSError, ValueError, TTLibError) as error:
+        parser.error(str(error))
+
+    args.output.mkdir(parents=True, exist_ok=True)
+    generated = []
+    if not args.base_font and not args.cat_only:
+        for path in sorted(args.source.glob("*.ttf")):
+            destination = args.output / ("NF-3.5.1-" + path.name)
+            shutil.copyfile(path, destination)
+            generated.append(destination)
+    for style, font in fonts.items():
         original_cmap = font.getBestCmap().copy()
-        advance = font["hmtx"]["space"][0]
+        advance = font["hmtx"][original_cmap[32]][0]
+        units = font["head"].unitsPerEm
+        baseline, margin = units * 0.02, units * 0.04
+        row_height = font["hhea"].ascent - 2 * baseline
+        cap_height = getattr(font["OS/2"], "sCapHeight", 0)
+        if cap_height <= 0:
+            # Older TrueType fonts need not declare sCapHeight.
+            cap_height = getattr(font["glyf"][original_cmap[ord("H")]], "yMax", units * 0.7)
+        cap_height = min(cap_height or units * 0.7, row_height)
         order = list(font.getGlyphOrder())
-        for code, cells, half, frame in sorted(layout):
-            assert code not in original_cmap, "Cat codepoint collides with an existing icon"
+        for code, cells, half, frame in layout:
             name = f"runcat{code:04x}"
-            height = font["hhea"].ascent-40 if cells == 3 else font["OS/2"].sCapHeight
-            scale = min((cells*advance-80)/(xmax-xmin), height/(ymax-ymin))
+            height = row_height if cells == 3 else cap_height
+            scale = min((cells*advance-2*margin)/(xmax-xmin), height/(ymax-ymin))
             left = (cells*advance - (xmax-xmin)*scale)/2
             pen = TTGlyphPen(None)
             for contour in poses[frame]:
-                transformed = [(left + (x-xmin)*scale, 20 + (y-ymin)*scale) for x, y in contour]
+                transformed = [(left + (x-xmin)*scale, baseline + (y-ymin)*scale) for x, y in contour]
                 clipped = clip_polygon(transformed, half * advance, True)
                 clipped = clip_polygon(clipped, (half+1) * advance, False)
                 if len(clipped) < 3:
@@ -144,30 +239,26 @@ def main():
                 if table.isUnicode() and table.format != 14:
                     table.cmap[code] = name
         font.setGlyphOrder(order)
-        face = {"BoldItalic": "Bold Italic"}.get(style, style)
-        names = {1: family, 2: face, 3: f"{family}-{style}-3.5.1",
-                 4: f"{family} {face}", 6: f"{family.replace(' ', '')}-{style}",
-                 16: family, 17: face}
-        for record in font["name"].names:
-            if record.nameID in names:
-                record.string = names[record.nameID].encode(record.getEncoding())
-        for name_id, value in names.items():
-            font["name"].setName(value, name_id, 3, 1, 0x409)
-        destination = args.output / f"JetBrainsMonoRunCat-{style}.ttf"
+        rename_font(font, family, style)
+        destination = args.output / f"RunCat-{style}.ttf"
         font.save(destination)
+        generated.append(destination)
         # Existing characters, glyphs, metrics and font features are preserved.
         saved = TTFont(destination)
         assert all(saved.getBestCmap()[code] == glyph for code, glyph in original_cmap.items())
-        assert saved["hmtx"]["space"][0] == advance
+        assert saved["hmtx"][original_cmap[32]][0] == advance
         print(destination)
 
     manifest = {}
-    for path in args.output.glob("*.ttf"):
+    # Only this build's files are installed. Old files from another selection
+    # may still be present in the generated directory.
+    for path in generated:
         font = TTFont(path)
-        family = font["name"].getDebugName(1)
-        face = font["name"].getDebugName(2)
-        manifest[path.name] = f"{family} {face} (TrueType)"
+        display_family = font["name"].getDebugName(1)
+        display_face = font["name"].getDebugName(2)
+        manifest[path.name] = f"{display_family} {display_face} (TrueType)"
     (args.output / "font-names.json").write_text(json.dumps(manifest), encoding="utf-8")
+    (args.output / "font-family.txt").write_text(family + "\n", encoding="utf-8")
 
 
 if __name__ == "__main__":

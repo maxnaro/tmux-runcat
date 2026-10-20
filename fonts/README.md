@@ -22,12 +22,67 @@ To build without installing or changing terminal settings:
 bash fonts/setup.sh --build-only
 ```
 
+## Custom base fonts
+
+Select a regular monospaced static TrueType font with `--base-font`. The
+bundled fontTools handles the build offline; the original files are read only.
+
+```bash
+bash fonts/setup.sh \
+  --base-font '/path/to/MyMono-Regular.ttf' \
+  --bold-font '/path/to/MyMono-Bold.ttf' \
+  --italic-font '/path/to/MyMono-Italic.ttf' \
+  --bold-italic-font '/path/to/MyMono-BoldItalic.ttf'
+```
+
+Only the regular face is required. Supply optional faces from the same family
+when available; missing faces are left for the terminal to synthesize. The
+patched family defaults to `<original family> RunCat v3`. Use `--family
+'My Mono RunCat'` to name it yourself. `--build-only` works with these options.
+Setup prints the selected family, and WSL setup passes it to Windows Terminal.
+
+The same options are available through environment variables, including when
+the parent dotfiles setup invokes this script:
+
+| Setup option | Environment variable |
+| --- | --- |
+| `--base-font` | `RUNCAT_BASE_FONT` |
+| `--bold-font` | `RUNCAT_BOLD_FONT` |
+| `--italic-font` | `RUNCAT_ITALIC_FONT` |
+| `--bold-italic-font` | `RUNCAT_BOLD_ITALIC_FONT` |
+| `--family` | `RUNCAT_FONT_FAMILY` |
+
+Explicit command arguments override environment values. For example:
+
+```bash
+RUNCAT_BASE_FONT="$HOME/fonts/MyMono-Regular.ttf" ./setup.sh
+```
+
+Run that command from your dotfiles repository. To reproduce a custom build,
+keep the same font files and options with your setup, along with their licenses.
+Identical inputs produce identical fonts. With no custom options, setup keeps
+using the pinned JetBrainsMono Nerd Font sources bundled in this repository.
+
+Custom inputs must contain printable ASCII with equal character widths and
+TrueType `glyf` outlines. Variable fonts, CFF/OpenType outlines, and web fonts
+are rejected with an explanation; use a static TrueType export. Existing
+characters and metrics are preserved. Use a Nerd Font base if your status bar
+also needs Nerd Font device icons. A base that already uses one of the cat
+codepoints is rejected rather than having its glyphs overwritten.
+
+Cat outlines scale to the selected font's cell advance, units per em, cap
+height, and row ascent. Fonts without a declared cap height use the height of
+`H`. The base font's line metrics and ordinary character widths stay intact.
+The generated `font-family.txt` and `font-names.json` describe the current
+build; installers use that manifest to exclude files from earlier selections.
+
 ## Windows Terminal / WSL
 
 Setup detects WSL and installs fonts in the current Windows user's font
 directory using Windows PowerShell. WSL Windows interoperability must be
-enabled. It selects `JetBrainsMono RunCat v3` in stable Windows Terminal's
-defaults, WSL profiles, and existing JetBrainsMono profiles, preserving other
+enabled. It selects the generated family (`JetBrainsMono RunCat v3` by default)
+in stable Windows Terminal's defaults, WSL profiles, and profiles using the
+previous default or an existing RunCat family, preserving other
 settings. Settings and font registrations are backed up before changes.
 Settings containing comments or trailing commas are accepted; changed files
 are saved as standard JSON. Other terminal apps need their font selected in
@@ -40,7 +95,7 @@ Installing fonts only inside WSL cannot supply them to Windows Terminal.
 ## Linux terminals
 
 Setup installs the fonts in the user's font directory and refreshes fontconfig
-when available. Select `JetBrainsMono RunCat v3` in your terminal. For Kitty,
+when available. Select the printed family in your terminal. For Kitty,
 you can instead map only the cat characters while keeping another main font:
 
 ```conf
@@ -77,7 +132,7 @@ The source `runcat-tmux.ttf` comes from
 [runcat-text](https://github.com/bzglve/runcat-text/blob/master/runcat.ttf),
 with the five original poses remapped from U+E900–U+E904 to U+EFF0–U+EFF4.
 Its BSD license is in `LICENSE`. Setup builds the two-character poses from this
-source and the pinned JetBrainsMono files.
+source and the selected base font files.
 
 Run the build regression checks with:
 
