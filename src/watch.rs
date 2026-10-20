@@ -93,13 +93,17 @@ pub fn run(socket: &OsStr, pid: &OsStr, generation: &str) -> io::Result<()> {
             continue;
         }
         let now = start.elapsed().as_secs_f64();
+        let mut next_update = now + POLL.as_secs_f64();
         let mut update = Vec::new();
         for (session, activity) in sessions {
             let animation = animations
                 .entry(session.clone())
                 .or_insert_with(|| Animation::new(activity.count, now));
-            let pose = animation.update(activity.count, now, activity.settings);
-            if published.get(&session).is_some_and(|value| value == pose) {
+            let pose = animation
+                .update(activity.count, now, activity.settings)
+                .to_owned();
+            next_update = next_update.min(animation.next_update());
+            if published.get(&session).is_some_and(|value| value == &pose) {
                 continue;
             }
             if !update.is_empty() {
@@ -110,7 +114,7 @@ pub fn run(socket: &OsStr, pid: &OsStr, generation: &str) -> io::Result<()> {
                 "-t".to_owned(),
                 session.clone(),
                 "@runcat-frame".to_owned(),
-                pose.to_owned(),
+                pose.clone(),
             ]);
             for client in activity.clients {
                 update.extend([
@@ -121,12 +125,17 @@ pub fn run(socket: &OsStr, pid: &OsStr, generation: &str) -> io::Result<()> {
                     client,
                 ]);
             }
-            published.insert(session, pose.to_owned());
+            published.insert(session, pose);
         }
         if !update.is_empty() && !tmux.output(update)?.status.success() {
             published.clear();
         }
-        thread::sleep(POLL);
+        // Poll input at least every 50 ms, waking earlier for fast frames.
+        // Time spent querying/redrawing tmux counts toward the deadline.
+        let delay = next_update - start.elapsed().as_secs_f64();
+        if delay > 0.0 {
+            thread::sleep(Duration::from_secs_f64(delay));
+        }
     }
 }
 

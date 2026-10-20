@@ -107,6 +107,7 @@ def main():
             wait_for(lambda: run("list-clients", "-F", "#{client_name}"), "client did not attach")
             wait_for(sleeping, "cat did not start asleep")
             assert run("show-option", "-gv", "@runcat-min-fps") == "4", "loader replaced user option"
+            assert run("show-option", "-gv", "@runcat-max-fps") == "0", "default speed is capped"
 
             keys = [b"a", b"\t", b"\x1b[A", b"\x1bq", "é".encode(), b"\x03", b"\r"]
             for key in keys:
@@ -132,6 +133,21 @@ def main():
                 sleeping_frames.add(text[:2])
                 time.sleep(0.05)
             assert sleeping_frames == SLEEP_POSES, "breathing frames did not cycle"
+
+            # Simulate a fast burst and observe actual status updates, catching
+            # both a configured cap and a worker still limited to 50 ms frames.
+            run("set-option", "-F", "-t", "runcat-live", "@runcat-keys", "#{e|+:#{@runcat-keys},120}")
+            wait_for(lambda: not sleeping(), "fast typing did not wake the cat")
+            changes = 0
+            previous = visible_pose()
+            deadline = time.monotonic() + 0.8
+            while time.monotonic() < deadline:
+                current = visible_pose()
+                changes += current != previous
+                previous = current
+                time.sleep(0.002)
+            assert changes > 20, ("fast typing still has a frame-rate cap", changes)
+            wait_for(sleeping, "cat did not sleep after fast typing")
 
             # Resizing applies live in both states without changing width
             # during the animation or interfering with the application's input.
@@ -188,7 +204,7 @@ def main():
                                       capture_output=True, text=True, env=environment)
             assert rejected.returncode != 0 and "already bound" in rejected.stderr
             assert "custom-binding" in run("list-keys", "-T", "root", "Any")
-            print("PASS: cold startup, breathing, all three sizes, idle/wake, key forwarding, mouse events, shortcuts, and reloads")
+            print("PASS: uncapped speed, cold startup, breathing, all three sizes, idle/wake, key forwarding, mouse events, shortcuts, and reloads")
         finally:
             subprocess.run(command + ["kill-server"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             if client:

@@ -41,7 +41,7 @@ impl CatSize {
 pub struct Settings {
     pub idle: f64,
     pub minimum: f64,
-    pub maximum: f64,
+    pub maximum: Option<f64>,
     pub size: CatSize,
 }
 
@@ -50,7 +50,7 @@ impl Default for Settings {
         Self {
             idle: 2.0,
             minimum: 3.0,
-            maximum: 12.0,
+            maximum: None,
             size: CatSize::Medium,
         }
     }
@@ -70,7 +70,11 @@ impl Settings {
         Self {
             idle: number(idle, 2.0, 0.1, 3600.0),
             minimum,
-            maximum: number(maximum, 12.0, minimum, 20.0),
+            maximum: maximum
+                .parse::<f64>()
+                .ok()
+                .filter(|value| value.is_finite() && *value > 0.0)
+                .map(|value| value.max(minimum)),
             size: CatSize::parse(size),
         }
     }
@@ -82,7 +86,7 @@ pub struct Animation {
     samples: VecDeque<(f64, u64)>,
     fps: f64,
     frame: u32,
-    next_frame: f64,
+    phase: f64,
     updated: f64,
     pose: String,
     sleep_since: Option<f64>,
@@ -97,10 +101,10 @@ impl Animation {
             samples: VecDeque::new(),
             fps: 3.0,
             frame: 4,
-            next_frame: now,
+            phase: 0.0,
             updated: now,
             pose: SLEEP_POSE.to_owned(),
-            sleep_since: None,
+            sleep_since: Some(now),
             sleep_step: 0,
         }
     }
@@ -120,7 +124,7 @@ impl Animation {
         if now - self.last_input >= settings.idle {
             self.samples.clear();
             self.fps = settings.minimum;
-            self.next_frame = now;
+            self.phase = 0.0;
             let started = *self.sleep_since.get_or_insert(now);
             self.sleep_step = ((now - started) / SLEEP_STEP_SECONDS) as usize % 4;
             self.pose = settings.size.pose([0, 1, 2, 1][self.sleep_step], true);
@@ -130,19 +134,34 @@ impl Animation {
         let was_sleeping = self.sleep_since.take().is_some();
 
         let rate: f64 = self.samples.iter().map(|(_, count)| *count as f64).sum();
-        let target = (settings.minimum + rate * 0.75).min(settings.maximum);
+        let target = settings.minimum + rate * 0.75;
         let smoothing = 1.0 - 0.15_f64.powf(elapsed / 0.3);
-        self.fps =
-            (self.fps + (target - self.fps) * smoothing).clamp(settings.minimum, settings.maximum);
-        if was_sleeping {
-            self.next_frame = now;
+        let previous_fps = self.fps;
+        self.fps = (self.fps + (target - self.fps) * smoothing).max(settings.minimum);
+        if let Some(maximum) = settings.maximum {
+            self.fps = self.fps.min(maximum);
         }
-        if now >= self.next_frame {
+        if was_sleeping {
             self.frame = (self.frame + 1) % 5;
-            self.next_frame = now + 1.0 / self.fps;
+            self.phase = 0.0;
+        } else {
+            // Keep fractional progress between polls, and advance by elapsed
+            // animation time if a slow redraw skipped one or more frames.
+            let frames = self.phase + elapsed * (previous_fps + self.fps) * 0.5;
+            self.frame = (self.frame + (frames % 5.0) as u32) % 5;
+            self.phase = frames.fract();
         }
         self.pose = settings.size.pose(self.frame, false);
         &self.pose
+    }
+
+    pub fn next_update(&self) -> f64 {
+        if let Some(started) = self.sleep_since {
+            let step = ((self.updated - started) / SLEEP_STEP_SECONDS).floor();
+            started + (step + 1.0) * SLEEP_STEP_SECONDS
+        } else {
+            self.updated + (1.0 - self.phase) / self.fps
+        }
     }
 }
 
@@ -161,15 +180,65 @@ mod tests {
     }
 
     #[test]
-    fn typing_accelerates_with_a_speed_limit() {
+    fn typing_accelerates_without_a_speed_limit() {
         let (mut slow, mut fast) = (Animation::new(0, 0.0), Animation::new(0, 0.0));
         let settings = Settings::default();
         for step in 1..=20 {
             slow.update(1 + step / 6, step as f64 * 0.05, settings);
-            fast.update(step, step as f64 * 0.05, settings);
+            fast.update(step * 4, step as f64 * 0.05, settings);
         }
-        assert!(fast.fps > slow.fps * 1.5);
-        assert!(fast.fps <= settings.maximum);
+        assert!(fast.fps > slow.fps * 2.0);
+        assert!(fast.fps > 50.0);
+        assert!(fast.next_update() - 1.0 < 0.02);
+    }
+
+    #[test]
+    fn fast_typing_produces_more_than_twenty_frames_per_second() {
+        let mut cat = Animation::new(0, 0.0);
+        let mut changes = 0;
+        let mut previous = String::new();
+        for step in 1..=3000 {
+            let pose = cat.update(step / 10, step as f64 * 0.001, Settings::default());
+            if step > 2000 && pose != previous {
+                changes += 1;
+            }
+            previous = pose.to_owned();
+        }
+        assert!(
+            changes > 60,
+            "only {changes} frame changes during fast typing"
+        );
+    }
+
+    #[test]
+    fn explicit_limits_still_apply_and_can_be_removed_live() {
+        let mut cat = Animation::new(0, 0.0);
+        let capped = Settings::parse("2", "3", "12", "medium");
+        for step in 1..=20 {
+            cat.update(step * 4, step as f64 * 0.05, capped);
+        }
+        assert!(cat.fps <= 12.0);
+        cat.update(84, 1.05, Settings::default());
+        assert!(cat.fps > 12.0);
+        assert_eq!(
+            Settings::parse("2", "3", "120", "medium").maximum,
+            Some(120.0)
+        );
+        for maximum in ["0", "unlimited", "NaN", "inf", "bad", "-1"] {
+            assert_eq!(Settings::parse("2", "3", maximum, "medium").maximum, None);
+        }
+    }
+
+    #[test]
+    fn delayed_updates_preserve_frame_progress() {
+        let mut cat = Animation::new(0, 0.0);
+        let settings = Settings::parse("2", "10", "10", "medium");
+        cat.update(1, 0.0, settings);
+        assert_eq!(
+            cat.update(1, 0.35, settings),
+            CatSize::Medium.pose(3, false)
+        );
+        assert!((cat.next_update() - 0.4).abs() < 0.000_001);
     }
 
     #[test]
@@ -206,7 +275,7 @@ mod tests {
         let settings = Settings::parse("NaN", "bad", "-1", "invalid");
         assert_eq!(
             (settings.idle, settings.minimum, settings.maximum),
-            (2.0, 3.0, 3.0)
+            (2.0, 3.0, None)
         );
         let settings = Settings::parse("0.5", "8", "20", "medium");
         let mut cat = Animation::new(0, 0.0);
