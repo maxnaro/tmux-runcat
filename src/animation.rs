@@ -1,6 +1,8 @@
 use std::collections::VecDeque;
 
 pub const SLEEP_POSE: &str = "\u{effa}\u{effb}";
+const SLEEP_POSES: [&str; 3] = [SLEEP_POSE, "\u{effc}\u{effd}", "\u{effe}\u{efff}"];
+const SLEEP_STEP_SECONDS: f64 = 0.75;
 
 #[derive(Clone, Copy, Debug)]
 pub struct Settings {
@@ -47,6 +49,8 @@ pub struct Animation {
     next_frame: f64,
     updated: f64,
     pose: String,
+    sleep_since: Option<f64>,
+    sleep_step: usize,
 }
 
 impl Animation {
@@ -60,6 +64,8 @@ impl Animation {
             next_frame: now,
             updated: now,
             pose: SLEEP_POSE.to_owned(),
+            sleep_since: None,
+            sleep_step: 0,
         }
     }
 
@@ -79,16 +85,20 @@ impl Animation {
             self.samples.clear();
             self.fps = settings.minimum;
             self.next_frame = now;
-            self.pose = SLEEP_POSE.to_owned();
+            let started = *self.sleep_since.get_or_insert(now);
+            self.sleep_step = ((now - started) / SLEEP_STEP_SECONDS) as usize % 4;
+            self.pose = SLEEP_POSES[[0, 1, 2, 1][self.sleep_step]].to_owned();
             return &self.pose;
         }
+
+        let was_sleeping = self.sleep_since.take().is_some();
 
         let rate: f64 = self.samples.iter().map(|(_, count)| *count as f64).sum();
         let target = (settings.minimum + rate * 0.75).min(settings.maximum);
         let smoothing = 1.0 - 0.15_f64.powf(elapsed / 0.3);
         self.fps =
             (self.fps + (target - self.fps) * smoothing).clamp(settings.minimum, settings.maximum);
-        if self.pose == SLEEP_POSE {
+        if was_sleeping {
             self.next_frame = now;
         }
         if now >= self.next_frame {
@@ -172,5 +182,20 @@ mod tests {
         cat.update(1, 0.1, settings);
         assert!(cat.fps >= 8.0);
         assert_eq!(cat.update(1, 0.61, settings), SLEEP_POSE);
+    }
+
+    #[test]
+    fn sleeping_breathes_with_a_fixed_width_and_wakes_immediately() {
+        let mut cat = Animation::new(0, 0.0);
+        let settings = Settings::default();
+        let expected = [0, 1, 2, 1, 0];
+        for (step, frame) in expected.into_iter().enumerate() {
+            let pose = cat.update(0, step as f64 * 0.75, settings);
+            assert_eq!(pose, SLEEP_POSES[frame]);
+            assert_eq!(pose.chars().count(), 2);
+        }
+        let pose = cat.update(1, 3.1, settings);
+        assert_ne!(pose, SLEEP_POSE);
+        assert_eq!(pose.chars().count(), 2);
     }
 }

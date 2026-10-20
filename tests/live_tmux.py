@@ -4,6 +4,7 @@ import fcntl
 import os
 from pathlib import Path
 import pty
+import re
 import select
 import struct
 import subprocess
@@ -14,6 +15,7 @@ import time
 
 PLUGIN = Path(__file__).resolve().parents[1]
 SLEEP = chr(0xEFFA) + chr(0xEFFB)
+SLEEP_POSES = {chr(0xEFFA + 2*frame) + chr(0xEFFB + 2*frame) for frame in range(3)}
 
 
 def main():
@@ -72,7 +74,13 @@ def main():
         def pose():
             result = subprocess.run(command + ["show-option", "-v", "-t", "runcat-live", "@runcat-frame"],
                                     env=environment, text=True, capture_output=True)
-            return result.stdout.strip() if result.returncode == 0 else ""
+            return result.stdout.rstrip("\r\n") if result.returncode == 0 else ""
+
+        def visible_pose():
+            return re.sub(r"#\[[^]]*\]", "", pose())
+
+        def sleeping():
+            return visible_pose()[:2] in SLEEP_POSES
 
         try:
             # Load before any session exists, as happens when other plugins
@@ -92,14 +100,14 @@ def main():
             reader.start()
             wait_for(lambda: capture.with_suffix(".ready").exists(), "capture pane did not start")
             wait_for(lambda: run("list-clients", "-F", "#{client_name}"), "client did not attach")
-            wait_for(lambda: pose() == SLEEP, "cat did not start asleep")
+            wait_for(sleeping, "cat did not start asleep")
             assert run("show-option", "-gv", "@runcat-min-fps") == "4", "loader replaced user option"
 
             keys = [b"a", b"\t", b"\x1b[A", b"\x1bq", "é".encode(), b"\x03", b"\r"]
             for key in keys:
                 os.write(master, key)
                 time.sleep(0.04)
-            wait_for(lambda: pose() != SLEEP, "typing did not wake the cat")
+            wait_for(lambda: bool(pose()) and not sleeping(), "typing did not wake the cat")
             count = int(run("show-option", "-v", "-t", "runcat-live", "@runcat-keys"))
             assert count == len(keys), ("incorrect key count", count)
             received = capture.with_suffix(".input").read_bytes()
@@ -110,7 +118,15 @@ def main():
             wait_for(lambda: b"\x1b[<35;" in capture.with_suffix(".input").read_bytes(),
                      "mouse movement was not forwarded")
             assert int(run("show-option", "-v", "-t", "runcat-live", "@runcat-keys")) == count
-            wait_for(lambda: pose() == SLEEP, "cat did not sleep after idle")
+            wait_for(sleeping, "cat did not sleep after idle")
+            sleeping_frames = set()
+            deadline = time.monotonic() + 2.5
+            while time.monotonic() < deadline and len(sleeping_frames) < 3:
+                text = visible_pose()
+                assert len(text) == 2, ("sleep animation changed layout width", text)
+                sleeping_frames.add(text[:2])
+                time.sleep(0.05)
+            assert sleeping_frames == SLEEP_POSES, "breathing frames did not cycle"
 
             # The existing prefix shortcut still splits a pane.
             os.write(master, b"\x02%")
@@ -138,8 +154,8 @@ def main():
             # Runtime options apply without restarting the server.
             run("set-option", "-t", "runcat-live", "@runcat-idle", "0.3")
             run("set-option", "-F", "-t", "runcat-live", "@runcat-keys", "#{e|+:#{@runcat-keys},1}")
-            wait_for(lambda: pose() != SLEEP, "reloaded worker did not wake")
-            wait_for(lambda: pose() == SLEEP, "custom idle timeout did not apply", timeout=1)
+            wait_for(lambda: bool(pose()) and not sleeping(), "reloaded worker did not wake")
+            wait_for(sleeping, "custom idle timeout did not apply", timeout=1)
             run("detach-client")
             generation = run("show-option", "-gv", "@runcat-generation")
             run("source-file", str(config))

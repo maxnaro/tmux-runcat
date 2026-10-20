@@ -54,4 +54,4 @@ $result = [UIntPtr]::Zero
 
 & (Join-Path $PSScriptRoot 'configure-windows-terminal.ps1')
 Write-Output "Installed $($fonts.Count) fonts. Font registry backup: $registryBackup"
-Write-Output 'Selected JetBrainsMono RunCat Active: the original NF font with running and sleeping poses.'
+Write-Output 'Selected JetBrainsMono RunCat v2: the original NF font with running and breathing poses.'

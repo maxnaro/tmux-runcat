@@ -103,15 +103,18 @@ def main():
         advance = font["hmtx"]["space"][0]
         order = list(font.getGlyphOrder())
         scale = min((2 * advance - 80) / (xmax - xmin), font["OS/2"].sCapHeight / (ymax - ymin))
-        for code in range(0xEFF0, 0xEFFC):
+        sleep_floor = min(y for contour in sleep_outline for _, y in contour)
+        for code in range(0xEFF0, 0xF000):
             assert code not in original_cmap, "Cat codepoint collides with an existing icon"
             name = f"runcat{code - 0xEFF0}"
             if code < 0xEFFA:
                 half, frame = divmod(code - 0xEFF0, 5)
                 contours = outlines[frame]
             else:
-                half = code - 0xEFFA
-                contours = sleep_outline
+                breath, half = divmod(code - 0xEFFA, 2)
+                # Anchor the lower silhouette while the body rises by 4/8%.
+                contours = [[(x, sleep_floor + (y-sleep_floor)*(1+0.04*breath))
+                             for x, y in contour] for contour in sleep_outline]
             pen = TTGlyphPen(None)
             for contour in contours:
                 transformed = [(40 + (x-xmin)*scale, 20 + (y-ymin)*scale) for x, y in contour]
@@ -133,10 +136,10 @@ def main():
                 if table.isUnicode() and table.format != 14:
                     table.cmap[code] = name
         font.setGlyphOrder(order)
-        family = "JetBrainsMono RunCat Active"
+        family = "JetBrainsMono RunCat v2"
         face = {"BoldItalic": "Bold Italic"}.get(style, style)
         names = {1: family, 2: face, 3: f"{family}-{style}-3.5.1",
-                 4: f"{family} {face}", 6: f"JetBrainsMonoRunCatActive-{style}",
+                 4: f"{family} {face}", 6: f"JetBrainsMonoRunCatV2-{style}",
                  16: family, 17: face}
         for record in font["name"].names:
             if record.nameID in names:

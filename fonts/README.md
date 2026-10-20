@@ -1,7 +1,7 @@
 # RunCat status animation
 
 Run `bash fonts/setup.sh` from the plugin repository root. It builds and installs the clean
-JetBrainsMono Nerd Font family and the separate `JetBrainsMono RunCat Active`
+JetBrainsMono Nerd Font family and the separate `JetBrainsMono RunCat v2`
 family. No manual downloads, pip, or virtual
 environment are needed. Python 3.11+ must be available on PATH.
 
@@ -26,7 +26,7 @@ bash fonts/setup.sh --build-only
 
 Setup detects WSL and installs fonts in the current Windows user's font
 directory using Windows PowerShell. WSL Windows interoperability must be
-enabled. It selects `JetBrainsMono RunCat Active` in stable Windows Terminal's
+enabled. It selects `JetBrainsMono RunCat v2` in stable Windows Terminal's
 defaults, WSL profiles, and existing JetBrainsMono profiles, preserving other
 settings. Settings and font registrations are backed up before changes.
 Settings containing comments or trailing commas are accepted; changed files
@@ -40,11 +40,11 @@ Installing fonts only inside WSL cannot supply them to Windows Terminal.
 ## Linux terminals
 
 Setup installs the fonts in the user's font directory and refreshes fontconfig
-when available. Select `JetBrainsMono RunCat Active` in your terminal. For Kitty,
+when available. Select `JetBrainsMono RunCat v2` in your terminal. For Kitty,
 you can instead map only the cat characters while keeping another main font:
 
 ```conf
-symbol_map U+EFF0-U+EFFB JetBrainsMono RunCat Active
+symbol_map U+EFF0-U+EFFF JetBrainsMono RunCat v2
 ```
 
 ## Animation and font construction
@@ -63,8 +63,10 @@ when the tmux server stops. The `@runcat-idle`, `@runcat-min-fps`, and
 `@runcat-max-fps` tmux options control the delay and speed.
 
 Each pose occupies two adjacent characters: U+EFF0–U+EFF4 for the left halves
-and U+EFF5–U+EFF9 for the right halves. U+EFFA/U+EFFB contain the sleeping
-pose, drawn in `sleeping-cat.svg`. The silhouette fills most of the text
+and U+EFF5–U+EFF9 for the right halves. U+EFFA–U+EFFF contain three breathing
+poses, drawn from `sleeping-cat.svg`. They raise the silhouette by 0%, 4%, and
+8% over a three-second cycle. Both states occupy two cells, keeping the status
+layout steady. The silhouette fills most of the text
 height without changing terminal character widths. Existing JetBrainsMono
 glyphs, spacing, weights, and ligature features are preserved.
 

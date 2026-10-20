@@ -30,8 +30,8 @@ if (Test-Path -LiteralPath $settingsPath) {
         if (-not $profile.PSObject.Properties['font']) {
             $profile | Add-Member -NotePropertyName font -NotePropertyValue ([pscustomobject]@{})
         }
-        if ($profile.font.face -ne 'JetBrainsMono RunCat Active') {
-            $profile.font | Add-Member -NotePropertyName face -NotePropertyValue 'JetBrainsMono RunCat Active' -Force
+        if ($profile.font.face -ne 'JetBrainsMono RunCat v2') {
+            $profile.font | Add-Member -NotePropertyName face -NotePropertyValue 'JetBrainsMono RunCat v2' -Force
             $changed = $true
         }
     }

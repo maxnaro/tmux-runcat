@@ -64,8 +64,8 @@ class FontBuildTests(unittest.TestCase):
 
     def test_sleep_pose_is_bundled_and_fits_two_cells(self):
         font = TTFont(self.data / "generated/JetBrainsMonoRunCat-Regular.ttf")
-        self.assertEqual(font["name"].getDebugName(1), "JetBrainsMono RunCat Active")
-        for code in (0xEFFA, 0xEFFB):
+        self.assertEqual(font["name"].getDebugName(1), "JetBrainsMono RunCat v2")
+        for code in range(0xEFFA, 0xF000):
             name = font.getBestCmap()[code]
             glyph = font["glyf"][name]
             self.assertEqual(font["hmtx"][name][0], 600)
@@ -82,6 +82,14 @@ class FontBuildTests(unittest.TestCase):
                 start = end+1
             self.assertTrue(any(area < 0 for area in areas))
             self.assertTrue(any(area > 0 for area in areas))
+
+    def test_breathing_lifts_the_body_without_moving_its_base(self):
+        font = TTFont(self.data / "generated/JetBrainsMonoRunCat-Regular.ttf")
+        for half in (0, 1):
+            glyphs = [font["glyf"][font.getBestCmap()[0xEFFA + 2*frame + half]] for frame in range(3)]
+            self.assertLess(glyphs[0].yMax, glyphs[1].yMax)
+            self.assertLess(glyphs[1].yMax, glyphs[2].yMax)
+            self.assertLess(max(g.yMin for g in glyphs) - min(g.yMin for g in glyphs), 15)
 
 
 if __name__ == "__main__":

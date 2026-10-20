@@ -51,5 +51,5 @@ else
     if command -v fc-cache >/dev/null 2>&1; then
         fc-cache -f "$FONT_INSTALL_DIR"
     fi
-    printf 'Installed RunCat fonts. Select "JetBrainsMono RunCat Active" in your terminal.\n'
+    printf 'Installed RunCat fonts. Select "JetBrainsMono RunCat v2" in your terminal.\n'
 fi

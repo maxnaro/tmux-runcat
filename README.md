@@ -2,8 +2,9 @@
 
 A small cat for your tmux status bar. It wakes when you type, runs faster as
 your typing speeds up, slows down, and curls up to sleep after two idle seconds.
-Each session has independent activity. The animation occupies two character
-cells and preserves the surrounding status-bar layout.
+Each session has independent activity. When sleeping, the cat breathes gently
+over a three-second cycle. It occupies two character cells in both states,
+keeping the surrounding status bar steady.
 
 The loader and animation worker are one Rust executable with no third-party
 Rust dependencies. Key counting uses tmux commands; no process is started per
@@ -28,11 +29,11 @@ bash fonts/setup.sh
 
 The pinned font sources and build tools are bundled, so building the binary
 and fonts needs no network after cloning. Font setup installs both the clean
-JetBrainsMono Nerd Font family and `JetBrainsMono RunCat Active`, which adds
+JetBrainsMono Nerd Font family and `JetBrainsMono RunCat v2`, which adds
 the running and sleeping poses while preserving existing glyphs and spacing.
 
 On WSL, setup installs fonts on Windows and selects the combined font in stable
-Windows Terminal. On Linux, select `JetBrainsMono RunCat Active` in your terminal.
+Windows Terminal. On Linux, select `JetBrainsMono RunCat v2` in your terminal.
 See [font setup](fonts/README.md) for details and backups.
 
 Include `#{@runcat-frame}` wherever you want the cat, and load the plugin after
