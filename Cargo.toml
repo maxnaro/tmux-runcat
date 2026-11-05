@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.89"
 description = "A tmux cat that runs with your typing and sleeps when idle"
+license = "GPL-3.0-only"
 publish = false
 
 [lints.rust]

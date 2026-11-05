@@ -56,3 +56,14 @@ The default is a stationary, two-cell classic cat that sleeps after two idle sec
 
 The plugin counts activity without reading or storing key contents.
 The running plugin needs only tmux; no process starts per keystroke.
+
+## License
+
+Copyright (c) 2026 Max Narongchai. Licensed under the
+[GNU General Public License v3.0 only](LICENSE) (`GPL-3.0-only`).
+Distributed modified versions must remain under GPLv3, with corresponding
+source provided as required by the license. Private modifications do not
+require publication.
+
+Bundled third-party fonts and tools retain their own licenses; see
+[fonts/LICENSE](fonts/LICENSE) and [fonts/vendor/](fonts/vendor/).
