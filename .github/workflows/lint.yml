@@ -76,7 +76,13 @@ jobs:
         run: python -m pip install ruff==0.12.12
       - if: needs.changes.outputs.python == 'true'
         run: python3 .github/scripts/ci.py python
-      - if: needs.changes.outputs.workflow == 'true'
+      - if: needs.changes.outputs.workflow == 'true' && steps.runtime.outputs.image != ''
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        id: actionlint-cache
+        with:
+          path: ${{ runner.temp }}/ci-tools/actionlint
+          key: actionlint-${{ runner.os }}-${{ runner.arch }}-${{ steps.runtime.outputs.image }}-${{ steps.runtime.outputs.go }}-1.7.7-v2
+      - if: needs.changes.outputs.workflow == 'true' && steps.actionlint-cache.outputs.cache-hit != 'true'
         run: GOBIN="$RUNNER_TEMP/ci-tools/actionlint" go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
       - if: needs.changes.outputs.workflow == 'true'
         run: |
@@ -96,7 +102,13 @@ jobs:
         run: |
           echo "image=${ImageVersion:-}" >> "$GITHUB_OUTPUT"
           echo "go=$(go env GOVERSION)" >> "$GITHUB_OUTPUT"
-      - if: true
+      - if: steps.runtime.outputs.image != ''
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        id: analyzer-cache
+        with:
+          path: ${{ runner.temp }}/ci-tools/modules
+          key: pssa-${{ runner.os }}-${{ runner.arch }}-${{ steps.runtime.outputs.image }}-powershell5-1.24.0
+      - if: steps.analyzer-cache.outputs.cache-hit != 'true'
         shell: powershell
         run: |
           New-Item -ItemType Directory -Force "$env:RUNNER_TEMP/ci-tools/modules" | Out-Null

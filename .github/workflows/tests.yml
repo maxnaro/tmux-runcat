@@ -62,7 +62,13 @@ jobs:
       - if: matrix.rust == 'stable'
         id: compiler
         run: echo "identity=$(rustc -vV | sha256sum | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
-      - if: matrix.rust == 'stable'
+      - if: matrix.rust == 'stable' && steps.runtime.outputs.image != ''
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        id: coverage-tool
+        with:
+          path: ${{ runner.temp }}/ci-tools/llvm-cov
+          key: llvm-cov-${{ runner.os }}-${{ runner.arch }}-${{ steps.runtime.outputs.image }}-${{ steps.compiler.outputs.identity }}-0.6.21
+      - if: matrix.rust == 'stable' && steps.coverage-tool.outputs.cache-hit != 'true'
         run: cargo install cargo-llvm-cov --version 0.6.21 --locked --root "$RUNNER_TEMP/ci-tools/llvm-cov"
       - if: matrix.rust == 'stable'
         run: |
@@ -99,7 +105,13 @@ jobs:
         run: |
           echo "image=${ImageVersion:-}" >> "$GITHUB_OUTPUT"
           echo "go=$(go env GOVERSION)" >> "$GITHUB_OUTPUT"
-      - if: true
+      - if: steps.runtime.outputs.image != ''
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        id: tmux-cache
+        with:
+          path: ${{ runner.temp }}/tmux
+          key: tmux-${{ runner.os }}-${{ runner.arch }}-${{ steps.runtime.outputs.image }}-3.6-136db80c-v1
+      - if: steps.tmux-cache.outputs.cache-hit != 'true'
         run: |
           sudo apt-get update
           sudo apt-get install -y libevent-dev libncurses-dev bison pkg-config
