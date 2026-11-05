@@ -1,4 +1,4 @@
-# CAT: Cat Around Terminal
+# CAT: Cat at Terminal
 
 A playful cat for your tmux status bar. It wakes when you type, runs faster
 as your typing speeds up, and curls up to sleep when you stop.
@@ -14,8 +14,8 @@ Existing installation paths and `@runcat-*` settings still apply.
   <img src="doc/assets/cat-light.gif" alt="A cat wakes, walks and runs across a tmux-style status bar, then settles down to sleep." width="720">
 </picture>
 
-*Edited runtime demo of Pet Cats with roaming; cuts show separate pauses.
-[Enable this setup](doc/configuration.md#spinning-and-roaming).*
+_Edited runtime demo of Pet Cats with roaming; cuts show separate pauses.
+[Enable this setup](doc/configuration.md#spinning-and-roaming)._
 
 [![Tests](https://github.com/maxnaro/tmux-runcat/actions/workflows/tests.yml/badge.svg?branch=main&event=push)](https://github.com/maxnaro/tmux-runcat/actions/workflows/tests.yml)
 [![Lint](https://github.com/maxnaro/tmux-runcat/actions/workflows/lint.yml/badge.svg?branch=main&event=push)](https://github.com/maxnaro/tmux-runcat/actions/workflows/lint.yml)
