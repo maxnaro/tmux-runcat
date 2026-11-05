@@ -66,6 +66,8 @@ pub struct Settings {
     pub size: CatSize,
     pub skin: Skin,
     pub spin_chance: f64,
+    pub wall_chance: f64,
+    pub wall_debug: bool,
 }
 
 impl Default for Settings {
@@ -77,6 +79,8 @@ impl Default for Settings {
             size: CatSize::Medium,
             skin: Skin::Classic,
             spin_chance: 0.0,
+            wall_chance: 35.0,
+            wall_debug: false,
         }
     }
 }
@@ -103,6 +107,8 @@ impl Settings {
             size: CatSize::parse(size),
             skin: Skin::parse(skin),
             spin_chance: 0.0,
+            wall_chance: 35.0,
+            wall_debug: false,
         }
     }
 
@@ -113,6 +119,24 @@ impl Settings {
             .filter(|value| value.is_finite())
             .unwrap_or(0.0)
             .clamp(0.0, 100.0);
+        self
+    }
+
+    pub fn with_wall_chance(mut self, value: &str) -> Self {
+        self.wall_chance = value
+            .parse::<f64>()
+            .ok()
+            .filter(|value| value.is_finite())
+            .unwrap_or(35.0)
+            .clamp(0.0, 100.0);
+        self
+    }
+
+    pub fn with_wall_debug(mut self, value: &str) -> Self {
+        self.wall_debug = matches!(
+            value.trim().to_ascii_lowercase().as_str(),
+            "on" | "1" | "true" | "yes"
+        );
         self
     }
 }
@@ -170,23 +194,37 @@ impl Animation {
         self.skin = settings.skin;
         let rate: f64 = self.samples.iter().map(|(_, count)| *count as f64).sum();
         if settings.skin == Skin::PetCats {
-            if now - self.last_input >= settings.idle {
+            if !settings.wall_debug && now - self.last_input >= settings.idle {
                 self.samples.clear();
                 self.fps = settings.minimum;
             } else {
                 self.adjust_speed(rate, elapsed, settings);
             }
+            if settings.wall_debug {
+                self.fps = self.fps.max(25.0);
+                if let Some(maximum) = settings.maximum {
+                    self.fps = self.fps.min(maximum);
+                }
+            }
             self.pose = self.pet.update(Activity {
                 now,
                 elapsed,
-                last_input: self.last_input,
+                last_input: if settings.wall_debug {
+                    now
+                } else {
+                    self.last_input
+                },
                 pressed: delta > 0,
                 idle: settings.idle,
                 fps: self.fps,
                 minimum: settings.minimum,
                 maximum: settings.maximum,
                 size: settings.size,
-                spin_chance: settings.spin_chance,
+                spin_chance: if settings.wall_debug {
+                    0.0
+                } else {
+                    settings.spin_chance
+                },
             });
             self.travel = self.pet.travel;
             self.state = self.pet.action;
@@ -236,6 +274,10 @@ impl Animation {
 
     pub fn state(&self) -> &'static str {
         self.state
+    }
+
+    pub fn pressed(&self) -> bool {
+        self.last_input == self.updated
     }
 
     pub fn travel(&self) -> f64 {

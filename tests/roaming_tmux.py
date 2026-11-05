@@ -66,6 +66,7 @@ def main():
                                 ("window-status-format", "[W]"),
                                 ("@runcat-skin", "pet-cats"), ("@runcat-size", "large"),
                                 ("@runcat-roam", "on"), ("@runcat-spin-chance", "0"),
+                                ("@runcat-wall-chance", "0"),
                                 ("@runcat-color", "cyan")]:
                 run("set-option", "-g", name, value)
             baseline = run("show-options", "-gqv", "status-format[0]")
@@ -232,6 +233,23 @@ def main():
             assert len(cat_colors) > 30, "no terminal cat frames captured"
             assert set(cat_colors[-30:]) == {6}, ("rendered cat did not stay cyan", cat_colors[-30:])
 
+            # Debug runs through the three local edge reactions even with
+            # wall chance zero, and each pose retains the configured color.
+            run("set-option", "-g", "@runcat-spin-chance", "0")
+            run("set-option", "-g", "@runcat-wall-debug", "on")
+            for action in ("head-bump", "wall-scratch", "parkour"):
+                wait_for(lambda: option("@runcat-state") == action,
+                         f"debug did not play {action}", timeout=10)
+                glyphs = lane().strip()
+                assert glyphs and all(0x102000 <= ord(ch) < 0x10326C for ch in glyphs), (
+                    action, repr(glyphs))
+                assert "#[fg=cyan]" in styled_lane(), "edge reaction changed color"
+                wait_for(lambda: option("@runcat-state") != action,
+                         f"debug action {action} did not finish", timeout=5)
+            run("set-option", "-g", "@runcat-wall-debug", "off")
+            wait_for(lambda: option("@runcat-state") == "sleep",
+                     "cat did not rest after debug mode")
+
             # Simulate a theme resetting the status format. The worker must
             # restore its overlay and remove it cleanly when disabled.
             run("set-option", "-g", "status-format[0]", baseline)
@@ -240,7 +258,7 @@ def main():
             run("set-option", "-g", "@runcat-roam", "off")
             wait_for(lambda: run("show-options", "-gqv", "status-format[0]") == baseline,
                      "disabling roaming did not restore the status format")
-            print("PASS: per-client stride/width, resizing, colors, pacing, direction, spinning, sleep, status commands and theme reload")
+            print("PASS: per-client stride/width, resizing, colors, wall reactions, debug cycle, direction, spinning, sleep, status commands and theme reload")
         finally:
             stop.set()
             subprocess.run(command + ["kill-server"], env=environment, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
