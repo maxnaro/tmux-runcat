@@ -1,0 +1,28 @@
+codecov:
+  notify:
+    after_n_builds: 2
+coverage:
+  status:
+    project:
+      default: false
+      rust:
+        flags: [rust]
+        target: auto
+        threshold: 0
+        informational: false
+        if_not_found: failure
+      python:
+        flags: [python]
+        target: auto
+        threshold: 0
+        informational: false
+        if_not_found: failure
+    patch: false
+flags:
+  rust:
+    paths: [src/]
+    carryforward: false
+  python:
+    paths: [fonts/]
+    carryforward: false
+comment: false

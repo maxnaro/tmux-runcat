@@ -1,5 +1,10 @@
 # tmux-runcat
 
+[![Tests](https://github.com/maxnaro/tmux-runcat/actions/workflows/tests.yml/badge.svg?branch=main&event=push)](https://github.com/maxnaro/tmux-runcat/actions/workflows/tests.yml)
+[![Lint](https://github.com/maxnaro/tmux-runcat/actions/workflows/lint.yml/badge.svg?branch=main&event=push)](https://github.com/maxnaro/tmux-runcat/actions/workflows/lint.yml)
+[![Rust coverage](https://codecov.io/gh/maxnaro/tmux-runcat/branch/main/graph/badge.svg?flag=rust)](https://app.codecov.io/gh/maxnaro/tmux-runcat)
+[![Python coverage](https://codecov.io/gh/maxnaro/tmux-runcat/branch/main/graph/badge.svg?flag=python)](https://app.codecov.io/gh/maxnaro/tmux-runcat)
+
 A small cat for your tmux status bar. It wakes when you type, runs faster as
 your typing speeds up without a speed cap, slows down, and curls up to sleep
 within two idle seconds by default.
@@ -239,3 +244,37 @@ files. Build outputs stay in
 executable through the shell entry point.
 
 Third-party font sources and their licenses are in `fonts/` and `fonts/vendor/`.
+
+### Continuous integration
+
+Tests run on every push and pull request. Rust tests cover Rust 1.89 and stable;
+Linux integration tests use tmux 3.6 and the release binary. Font tests use
+Python 3.11. Windows Terminal settings tests use Windows PowerShell 5.1.
+Lint checks Rust formatting and Clippy, ShellCheck, Ruff correctness rules,
+actionlint, and PSScriptAnalyzer error-level findings.
+
+Rust coverage measures unit-test execution. Python coverage includes the font
+builder subprocesses and excludes tests and vendored code. Reports remain
+available as Actions artifacts for 14 days. Each language has its own Codecov
+check, allowing no coverage decrease relative to the base commit.
+
+To enable reporting, connect this repository to Codecov and add its repository
+upload token as the GitHub Actions secret `CODECOV_TOKEN`. Public fork pull
+requests upload without that secret. After the first successful run on `main`
+establishes both baselines, require all Tests and Lint jobs plus
+`codecov/project/rust` and `codecov/project/python` in branch protection.
+
+To reproduce Python coverage locally, install `coverage==7.10.7`, then run:
+
+```sh
+export COVERAGE_RCFILE="$PWD/.coveragerc"
+export COVERAGE_FILE="$PWD/target/coverage/.coverage"
+python3 -m coverage run -m unittest discover -s fonts/tests -p 'test_*.py'
+python3 -m coverage combine
+python3 -m coverage report
+```
+
+Install `ruff==0.12.12` to run
+`ruff check --select E9,F --target-version py311 fonts tests`.
+Run `shellcheck runcat.tmux fonts/setup.sh` and `actionlint` for shell and
+workflow checks. CI never rewrites source files.
