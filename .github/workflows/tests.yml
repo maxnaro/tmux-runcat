@@ -1,7 +1,7 @@
 name: Tests
 on:
   push:
-    paths-ignore: &paths_to_ignore
+    paths-ignore:
       - "**/*.md"
       - "doc/**"
       - "**/LICENSE"
@@ -10,7 +10,14 @@ on:
       - "**/*-LICENSE.*"
       - "**/*-OFL.txt"
   pull_request:
-    paths-ignore: *paths_to_ignore
+    paths-ignore:
+      - "**/*.md"
+      - "doc/**"
+      - "**/LICENSE"
+      - "**/LICENSE.*"
+      - "**/*-LICENSE"
+      - "**/*-LICENSE.*"
+      - "**/*-OFL.txt"
   workflow_dispatch:
 permissions:
   contents: read
