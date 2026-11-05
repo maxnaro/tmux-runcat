@@ -1,0 +1,82 @@
+# Installation
+
+## Requirements
+
+- tmux (tested against 3.6) on Linux or WSL
+- Rust 1.89+ and Cargo to build; the running plugin needs only tmux
+- Bash for the `.tmux` entry point
+- Python 3.11+, tar with xz support, and sha256sum for the one-time font setup
+- On WSL: Windows interoperability and Windows PowerShell for font installation
+
+## Install
+
+```sh
+git clone https://github.com/maxnaro/tmux-runcat.git ~/.config/tmux/plugins/tmux-runcat
+cd ~/.config/tmux/plugins/tmux-runcat
+cargo build --release --locked --offline
+bash fonts/setup.sh
+```
+
+The pinned font sources and build tools are bundled, so building the binary
+and fonts needs no network after cloning. Font setup installs both the clean
+JetBrainsMono Nerd Font family and `JetBrainsMono RunCat v7`, which adds
+the running and sleeping poses while preserving existing glyphs and spacing.
+
+On WSL, setup installs fonts on Windows and selects the combined font in stable
+Windows Terminal. On Linux, select `JetBrainsMono RunCat v7` in your terminal.
+See [font setup](../fonts/README.md) for details and backups.
+
+To use your own base font, supply a regular monospaced static TrueType file:
+
+```sh
+bash fonts/setup.sh --base-font '/path/to/MyMono-Regular.ttf'
+```
+
+Setup creates a separate `<original family> RunCat v7` family, using the base
+font's spacing and height for all cat sizes. Add `--bold-font`, `--italic-font`,
+and `--bold-italic-font` for matching faces, or `--family` to choose the output
+family name. These are font setup options; terminal fonts cannot be selected
+through a tmux option. See [custom fonts](../fonts/README.md#custom-base-fonts)
+for environment variables, supported formats, and reproducible setup.
+
+Include `#{@runcat-frame}` wherever you want the cat, and load the plugin after
+your status settings:
+
+```tmux
+set -g status-right '#{@runcat-frame} | #h | %H:%M '
+run-shell '~/.config/tmux/plugins/tmux-runcat/runcat.tmux "#{socket_path}" "#{pid}"'
+```
+
+Pass the socket and PID as shown to support custom tmux sockets during startup.
+Reload with `tmux source-file ~/.config/tmux/tmux.conf`.
+
+For TPM, add `set -g @plugin 'maxnaro/tmux-runcat'` to your plugin list. After
+TPM clones it, build the binary, run font setup, add the status placeholder,
+and reload tmux. The entry point uses the current `TMUX` environment when no
+socket arguments are supplied.
+
+
+## Updating
+
+Update your checkout through Git or TPM, then rebuild the executable:
+
+```sh
+cd ~/.config/tmux/plugins/tmux-runcat
+cargo build --release --locked --offline
+```
+
+Run `bash fonts/setup.sh` when an update adds or changes cat glyphs, then reload
+your tmux configuration. Repeated loads replace the worker with the new build.
+
+## Use as a dotfiles submodule
+
+```sh
+git submodule add git@github.com:maxnaro/tmux-runcat.git tmux/.config/tmux/plugins/tmux-runcat
+git submodule update --init --recursive
+cargo build --release --locked --offline --manifest-path tmux/.config/tmux/plugins/tmux-runcat/Cargo.toml
+bash tmux/.config/tmux/plugins/tmux-runcat/fonts/setup.sh
+```
+
+Commit plugin changes in this repository first, then update its pointer in the
+parent dotfiles repository. Rebuild the executable after updating the plugin.
+
