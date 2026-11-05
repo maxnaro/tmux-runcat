@@ -2,7 +2,7 @@
 
 A playful cat for your tmux status bar. It wakes when you type, runs faster
 as your typing speeds up, and curls up to sleep when you stop.
-Choose a classic silhouette or an expressive Pet Cats skin that can roam
+Choose a classic silhouette or a member of the Pet Cats family that can roam
 through your status bar. Activity is independent for each session.
 
 The repository is currently `tmux-runcat`; the planned name is **tmux-CAT**.
@@ -33,7 +33,7 @@ cargo build --release --locked --offline
 bash fonts/setup.sh
 ```
 
-Select **JetBrainsMono RunCat v7** in your terminal. WSL setup selects it in
+Select **JetBrainsMono RunCat v8** in your terminal. WSL setup selects it in
 stable Windows Terminal automatically. Build and font sources are bundled;
 no network is needed after cloning.
 
@@ -46,6 +46,27 @@ run-shell '~/.config/tmux/plugins/tmux-runcat/runcat.tmux "#{socket_path}" "#{pi
 
 Reload with `tmux source-file ~/.config/tmux/tmux.conf`.
 The default is a stationary, two-cell classic cat that sleeps after two idle seconds.
+
+## Cat family
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="doc/assets/family-dark.gif">
+  <source media="(prefers-color-scheme: light)" srcset="doc/assets/family-light.gif">
+  <img src="doc/assets/family-light.gif" alt="Original, Stocky, Lanky, Fluffy and Bobtail cats walk, run and sleep, with distinct bodies and gaits." width="720">
+</picture>
+
+_Runtime captures at xlarge size, assembled for comparison. Select one cat per session._
+
+| Cat | Configuration |
+| --- | --- |
+| Original | `set -g @runcat-skin pet-cats` |
+| Stocky | `set -g @runcat-skin pet-cats-stocky` |
+| Lanky | `set -g @runcat-skin pet-cats-lanky` |
+| Fluffy | `set -g @runcat-skin pet-cats-fluffy` |
+| Bobtail | `set -g @runcat-skin pet-cats-bobtail` |
+
+All relatives share typing response, rest gestures, colours, and roaming controls.
+Install the v8 font before choosing a new family member.
 
 ## Documentation
 

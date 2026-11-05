@@ -3,7 +3,7 @@
 import math
 
 
-def pixels(frame, count):
+def pixels(frame, count, variant=None):
     # Orthographic yaw, rather than a cartwheel: a slim body, four paws,
     # pointed ears, a curled tail and eyes which disappear behind the head.
     angle = frame * math.tau / count
@@ -19,9 +19,21 @@ def pixels(frame, count):
             shapes.append(((side * 2.6, 12 + step * 0.5, 6),
                            (1.4 - step * 0.18, 0.6, 1.1 - step * 0.12), True))
         shapes.append(((side * 1.5, 10.8, 9.45), (0.65, 0.75, 0.5), False))
-    for step in range(9):
+    for step in range(3 if variant == "bobtail" else 9):
         shapes.append(((step * 0.6, 3 + step * 0.3, -10.5 - step * 0.25),
                        (0.7, 0.7, 0.7), True))
+
+    # Keep original geometry exact. Relatives use the same rotation with
+    # different body proportions, fur volume, or a naturally short tail.
+    if variant in ("stocky", "lanky", "fluffy"):
+        width, height, length = {
+            "stocky": (1.25, 0.85, 0.95),
+            "lanky": (0.8, 1.0, 1.08),
+            "fluffy": (1.15, 0.95, 1.03),
+        }[variant]
+        shapes = [((x * width, y * height, z * length),
+                   (rx * width, ry * height, rz * length), ink)
+                  for (x, y, z), (rx, ry, rz), ink in shapes]
 
     result = []
     for row in range(50):

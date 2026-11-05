@@ -36,3 +36,9 @@ python3 -m coverage report
 ## CI selection
 
 CI runs on main pushes and pull requests; manual dispatch runs every job. Routing rules and script discovery live in `.github/scripts/ci.py`. Unknown non-documentation paths run all checks. Documentation-only changes run routing regression tests. First-party scripts are linted across the repository. Rust also depends on the bundled animation manifest. Versioned tool caches invalidate when their version or runner image changes. Font outputs and coverage reports are never cached. Font-test profiling is tracked in [issue #15](https://github.com/maxnaro/tmux-runcat/issues/15).
+
+## Family gallery
+
+Run `python3 doc/render_family.py` with Pillow installed to regenerate the light and dark README family GIFs. The script builds temporary fonts and captures five isolated tmux sessions under the same input schedule. It does not install fonts or change user settings.
+
+Family outlines are original code-native adaptations of the bundled CC0 Pet Cats artwork. Their body proportions, tail shapes and phase-dependent gait edits are reproduced offline by `fonts/pet_cats.py`.

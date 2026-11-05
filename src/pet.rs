@@ -78,10 +78,29 @@ fn size_layout(size: CatSize) -> (u32, u32) {
     }
 }
 
+/// Translate the original pose into a family's contiguous glyph block.
+pub fn family_pose(pose: &str, base: Option<u32>) -> String {
+    let Some(base) = base else {
+        return pose.to_owned();
+    };
+    mirror(pose)
+        .chars()
+        .map(|character| {
+            let code = character as u32;
+            char::from_u32(base + code - MIRROR_BASE).unwrap()
+        })
+        .collect()
+}
+
 pub fn mirror(pose: &str) -> String {
     pose.chars()
         .map(|character| {
             let code = character as u32;
+            for base in [0x102000, 0x103000, 0x104000, 0x105000] {
+                if (base..base + 860).contains(&code) {
+                    return char::from_u32(code + 860).unwrap();
+                }
+            }
             let (frame, offset) = if (BASE..BASE + clip("spin").first * 6).contains(&code) {
                 ((code - BASE) / 6, (code - BASE) % 6)
             } else if (XLARGE_BASE..XLARGE_BASE + clip("spin").first * 4).contains(&code) {
@@ -335,6 +354,43 @@ mod tests {
             size: CatSize::XLarge,
             spin_chance: 0.0,
         }
+    }
+
+    #[test]
+    fn family_blocks_cover_every_clip_size_and_facing() {
+        let mut codes = std::collections::HashSet::new();
+        for base in [0x102000, 0x103000, 0x104000, 0x105000] {
+            for action in REST_ACTIONS.into_iter().chain([
+                "walk",
+                "run",
+                "lie-down",
+                "sleep",
+                "deep-sleep",
+                "stretch",
+                "spin",
+            ]) {
+                for frame in 0..clip(action).frames {
+                    for size in [
+                        CatSize::Small,
+                        CatSize::Medium,
+                        CatSize::Large,
+                        CatSize::XLarge,
+                    ] {
+                        let original = pose(size, action, frame);
+                        let family = family_pose(&original, Some(base));
+                        assert_eq!(family.chars().count(), original.chars().count());
+                        for (right, left) in family.chars().zip(mirror(&family).chars()) {
+                            let right = right as u32;
+                            assert!((base..base + 860).contains(&right));
+                            assert_eq!(left as u32, right + 860);
+                            codes.insert(right);
+                            codes.insert(left as u32);
+                        }
+                    }
+                }
+            }
+        }
+        assert_eq!(codes.len(), 4 * 1720);
     }
 
     #[test]

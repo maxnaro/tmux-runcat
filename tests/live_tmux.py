@@ -180,6 +180,13 @@ def main():
                 run("set-option", "-t", "runcat-live", "@runcat-size", size)
                 wait_for(lambda: len(visible_pose()) == width, "Pet Cats size did not apply")
                 assert state() == "sleep", "resizing woke Pet Cats"
+            for index, relative in enumerate(("stocky", "lanky", "fluffy", "bobtail")):
+                base = 0x102000 + index * 0x1000
+                run("set-option", "-t", "runcat-live", "@runcat-skin", "pet-cats-" + relative)
+                wait_for(lambda: len(visible_pose()) == 2 and
+                         all(base <= ord(ch) < base + 860 for ch in visible_pose()),
+                         "family selection did not apply")
+                assert state() == "sleep", "changing relatives woke the cat"
             run("set-option", "-t", "runcat-live", "@runcat-skin", "classic")
             wait_for(sleeping, "switching back to the classic skin did not apply")
 

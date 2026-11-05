@@ -1,6 +1,6 @@
 # Configuration
 
-Options apply live. Install the v7 fonts for all skins and sizes.
+Options apply live. Install the v8 fonts for all skins and sizes.
 
 | Option | Default | Meaning |
 | --------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -8,7 +8,7 @@ Options apply live. Install the v7 fonts for all skins and sizes.
 | `@runcat-min-fps` | `3` | Minimum running speed (1–20 FPS) |
 | `@runcat-max-fps` | `0` | `0` or `unlimited` removes the cap; a positive FPS value sets an optional limit |
 | `@runcat-size` | `medium` | `small` (1 cell), `medium` (2 cells), `large` (3 cells), or `xlarge` (4 cells) |
-| `@runcat-skin` | `classic` | `classic` or `pet-cats` |
+| `@runcat-skin` | `classic` | `classic`, `pet-cats`, `pet-cats-stocky`, `pet-cats-lanky`, `pet-cats-fluffy`, or `pet-cats-bobtail` |
 | `@runcat-spin-chance` | `0` | Pet Cats: percent chance per second of running to start an OIIA-style spin (0–100) |
 | `@runcat-roam` | `off` | `on` lets the cat pace through the free space between the window list and right status |
 | `@runcat-color` | `inherit` | Roaming foreground: ANSI colour name (including bright variants), `colour0`–`colour255`, `#RRGGBB`, `default` (terminal default), or `inherit` (status foreground) |

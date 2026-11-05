@@ -6,7 +6,7 @@ Run from the repository root:
 bash fonts/setup.sh
 ```
 
-Setup installs `JetBrainsMono RunCat v7` alongside the clean Nerd Font.
+Setup installs `JetBrainsMono RunCat v8` alongside the clean Nerd Font.
 Use `--build-only` to build without installing or changing terminal settings.
 Sources and tools are [bundled](vendor/README.md); setup needs Python 3.11+
 but no downloads or pip. Build files live in
@@ -27,7 +27,7 @@ bash fonts/setup.sh \
 
 Only the regular face is required. Supply optional faces from the same family
 when available; missing faces are left for the terminal to synthesize. The
-patched family defaults to `<original family> RunCat v7`. Use `--family
+patched family defaults to `<original family> RunCat v8`. Use `--family
 'My Mono RunCat'` to name it yourself. `--build-only` works with these options.
 Setup prints the selected family, and WSL setup passes it to Windows Terminal.
 
@@ -56,7 +56,7 @@ codepoints is rejected rather than having its glyphs overwritten.
 
 Setup detects WSL and installs fonts in the current Windows user's font
 directory using Windows PowerShell. WSL Windows interoperability must be
-enabled. It selects the generated family (`JetBrainsMono RunCat v7` by default)
+enabled. It selects the generated family (`JetBrainsMono RunCat v8` by default)
 in stable Windows Terminal's defaults, WSL profiles, and profiles using the
 previous default or an existing RunCat family, preserving other
 settings. Settings and font registrations are backed up before changes.
@@ -75,5 +75,5 @@ when available. Select the printed family in your terminal. For Kitty,
 you can instead map only the cat characters while keeping another main font:
 
 ```conf
-symbol_map U+E400-U+E517,U+EFF0-U+EFFF,U+F600-U+F607,U+F620-U+F637,U+F640-U+F65F,U+F700-U+F8A3,U+100000-U+10009F,U+101000-U+10135B JetBrainsMono RunCat v7
+symbol_map U+E400-U+E517,U+EFF0-U+EFFF,U+F600-U+F607,U+F620-U+F637,U+F640-U+F65F,U+F700-U+F8A3,U+100000-U+10009F,U+101000-U+10135B,U+102000-U+1026B7,U+103000-U+1036B7,U+104000-U+1046B7,U+105000-U+1056B7 JetBrainsMono RunCat v8
 ```

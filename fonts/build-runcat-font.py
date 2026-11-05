@@ -139,7 +139,7 @@ def rename_font(font, family, style):
     # whose display names contain spaces or non-ASCII characters.
     ascii_family = unicodedata.normalize("NFKD", family).encode("ascii", "ignore").decode()
     postscript = re.sub(r"[^A-Za-z0-9-]", "", ascii_family)[:48] or "RunCat"
-    names = {1: family, 2: face, 3: f"{family}-{style}-runcat-v7",
+    names = {1: family, 2: face, 3: f"{family}-{style}-runcat-v8",
              4: f"{family} {face}", 6: f"{postscript}-{style}",
              16: family, 17: face, 18: f"{family} {face}", 21: family, 22: face}
     for record in list(font["name"].names):
@@ -192,7 +192,13 @@ def main():
             sources[style] = path
     poses, layout, classic_bounds = cat_poses()
     pet_frames, pet_layout, pet_bounds = pet_cats.poses()
-    pet_codes = {code for code, _, _, _ in pet_layout}
+    pet_geometry = {code: (pet_frames[frame]["mono"], pet_bounds)
+                    for code, _, _, frame in pet_layout}
+    for variant in pet_cats.FAMILY_BASES:
+        frames, family_layout, bounds = pet_cats.poses(variant)
+        pet_geometry.update({code: (frames[frame]["mono"], bounds)
+                             for code, _, _, frame in family_layout})
+        pet_layout += family_layout
     layout += pet_layout
     fonts = {}
     try:
@@ -203,7 +209,7 @@ def main():
         elif args.base_font:
             names = fonts["Regular"]["name"]
             base_family = names.getDebugName(16) or names.getDebugName(1) or args.base_font.stem
-            family = f"{base_family} RunCat v7"
+            family = f"{base_family} RunCat v8"
         else:
             family = Path(__file__).with_name("font-family.txt").read_text().strip()
         if not family or any(ord(char) < 32 or ord(char) == 127 for char in family):
@@ -252,8 +258,8 @@ def main():
 
         for code, cells, half, frame in layout:
             name = f"runcat{code:04x}"
-            is_pet = code in pet_codes
-            bounds = pet_bounds if is_pet else classic_bounds
+            is_pet = code in pet_geometry
+            bounds = pet_geometry[code][1] if is_pet else classic_bounds
             xmin, xmax, ymin, ymax = bounds
             height = row_height if cells == 3 else cap_height
             floor = baseline
@@ -265,7 +271,7 @@ def main():
             scale = min((cells*advance-2*margin)/(xmax-xmin), height/(ymax-ymin))
             left = (cells*advance - (xmax-xmin)*scale)/2
             geometry = (bounds, scale, left, floor, advance, half)
-            contours = pet_frames[frame]["mono"] if is_pet else poses[frame]
+            contours = pet_geometry[code][0] if is_pet else poses[frame]
             store_glyph(name, outline_glyph(contours, *geometry))
             for table in font["cmap"].tables:
                 if table.isUnicode() and table.format != 14 and (code <= 0xFFFF or table.format in (12, 13)):

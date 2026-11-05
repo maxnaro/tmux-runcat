@@ -11,14 +11,31 @@ pub enum Skin {
     #[default]
     Classic,
     PetCats,
+    Stocky,
+    Lanky,
+    Fluffy,
+    Bobtail,
 }
 
 impl Skin {
+    fn family_base(self) -> Option<u32> {
+        match self {
+            Self::Classic | Self::PetCats => None,
+            Self::Stocky => Some(0x102000),
+            Self::Lanky => Some(0x103000),
+            Self::Fluffy => Some(0x104000),
+            Self::Bobtail => Some(0x105000),
+        }
+    }
+
     fn parse(value: &str) -> Self {
-        if value.trim().eq_ignore_ascii_case("pet-cats") {
-            Self::PetCats
-        } else {
-            Self::Classic
+        match value.trim().to_ascii_lowercase().as_str() {
+            "pet-cats" => Self::PetCats,
+            "pet-cats-stocky" => Self::Stocky,
+            "pet-cats-lanky" => Self::Lanky,
+            "pet-cats-fluffy" => Self::Fluffy,
+            "pet-cats-bobtail" => Self::Bobtail,
+            _ => Self::Classic,
         }
     }
 }
@@ -169,7 +186,7 @@ impl Animation {
         }
         self.skin = settings.skin;
         let rate: f64 = self.samples.iter().map(|(_, count)| *count as f64).sum();
-        if settings.skin == Skin::PetCats {
+        if settings.skin != Skin::Classic {
             if now - self.last_input >= settings.idle {
                 self.samples.clear();
                 self.fps = settings.minimum;
@@ -188,6 +205,7 @@ impl Animation {
                 size: settings.size,
                 spin_chance: settings.spin_chance,
             });
+            self.pose = crate::pet::family_pose(&self.pose, settings.skin.family_base());
             self.travel = self.pet.travel;
             self.state = self.pet.action;
             return &self.pose;
@@ -243,7 +261,7 @@ impl Animation {
     }
 
     pub fn facing(&self, left: bool) -> String {
-        if left && self.skin == Skin::PetCats {
+        if left && self.skin != Skin::Classic {
             crate::pet::mirror(&self.pose)
         } else {
             self.pose.clone()
@@ -251,7 +269,7 @@ impl Animation {
     }
 
     pub fn next_update(&self) -> f64 {
-        if self.skin == Skin::PetCats {
+        if self.skin != Skin::Classic {
             self.pet.deadline
         } else if let Some(started) = self.sleep_since {
             let step = ((self.updated - started) / SLEEP_STEP_SECONDS).floor();
@@ -265,6 +283,44 @@ impl Animation {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn relatives_parse_and_switch_without_changing_activity_or_phase() {
+        let mut reference = Animation::new(0, 0.0);
+        let mut family = Animation::new(0, 0.0);
+        let original = Settings {
+            skin: Skin::PetCats,
+            ..Settings::default()
+        };
+        for step in 0..120 {
+            let skin = [Skin::Stocky, Skin::Lanky, Skin::Fluffy, Skin::Bobtail][step % 4];
+            let count = if step < 60 { step as u64 * 3 } else { 177 };
+            let now = step as f64 * 0.05;
+            let expected = reference.update(count, now, original).to_owned();
+            let actual = family
+                .update(count, now, Settings { skin, ..original })
+                .to_owned();
+            assert_eq!(
+                actual,
+                crate::pet::family_pose(&expected, skin.family_base())
+            );
+            assert_eq!(family.state(), reference.state());
+            assert_eq!(family.travel(), reference.travel());
+            assert_eq!(family.next_update(), reference.next_update());
+        }
+        for (name, skin) in [
+            ("stocky", Skin::Stocky),
+            ("lanky", Skin::Lanky),
+            ("fluffy", Skin::Fluffy),
+            ("bobtail", Skin::Bobtail),
+        ] {
+            assert_eq!(
+                Skin::parse(&format!(" PET-CATS-{} ", name.to_uppercase())),
+                skin
+            );
+        }
+        assert_eq!(Skin::parse("pet-cats-unknown"), Skin::Classic);
+    }
 
     #[test]
     fn sleep_wake_and_two_second_timeout() {
