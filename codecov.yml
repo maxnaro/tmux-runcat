@@ -1,6 +1,7 @@
 codecov:
   notify:
-    after_n_builds: 2
+    after_n_builds: 1
+    wait_for_ci: true
 coverage:
   status:
     project:
@@ -21,8 +22,8 @@ coverage:
 flags:
   rust:
     paths: [src/]
-    carryforward: false
+    carryforward: true
   python:
     paths: [fonts/]
-    carryforward: false
+    carryforward: true
 comment: false
