@@ -1,135 +1,57 @@
 # Configuration
 
-## Options
+Options apply live. Install the v7 fonts for all skins and sizes.
 
-Set these before loading the plugin; existing values are preserved. Values
-can also be changed with `set-option` while the animation is running.
-
-| Option                | Default   | Meaning                                                                                                                                                            |
+| Option | Default | Meaning |
 | --------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `@runcat-idle`        | `2`       | Maximum idle seconds before sleeping (0.1–3600); Pet Cats may finish short gestures earlier                                                                        |
-| `@runcat-min-fps`     | `3`       | Minimum running speed (1–20 FPS)                                                                                                                                   |
-| `@runcat-max-fps`     | `0`       | `0` or `unlimited` removes the cap; a positive FPS value sets an optional limit                                                                                    |
-| `@runcat-size`        | `medium`  | `small` (1 cell), `medium` (2 cells), `large` (3 cells), or `xlarge` (4 cells)                                                                                     |
-| `@runcat-skin`        | `classic` | `classic` or `pet-cats`                                                                                                                                            |
-| `@runcat-spin-chance` | `0`       | Pet Cats: percent chance per second of running to start an OIIA-style spin (0–100)                                                                                 |
-| `@runcat-roam`        | `off`     | `on` lets the cat pace through the free space between the window list and right status                                                                             |
-| `@runcat-color`       | `inherit` | Roaming foreground: ANSI colour name (including bright variants), `colour0`–`colour255`, `#RRGGBB`, `default` (terminal default), or `inherit` (status foreground) |
+| `@runcat-idle` | `2` | Maximum idle seconds before sleeping (0.1–3600); Pet Cats may finish short gestures earlier |
+| `@runcat-min-fps` | `3` | Minimum running speed (1–20 FPS) |
+| `@runcat-max-fps` | `0` | `0` or `unlimited` removes the cap; a positive FPS value sets an optional limit |
+| `@runcat-size` | `medium` | `small` (1 cell), `medium` (2 cells), `large` (3 cells), or `xlarge` (4 cells) |
+| `@runcat-skin` | `classic` | `classic` or `pet-cats` |
+| `@runcat-spin-chance` | `0` | Pet Cats: percent chance per second of running to start an OIIA-style spin (0–100) |
+| `@runcat-roam` | `off` | `on` lets the cat pace through the free space between the window list and right status |
+| `@runcat-color` | `inherit` | Roaming foreground: ANSI colour name (including bright variants), `colour0`–`colour255`, `#RRGGBB`, `default` (terminal default), or `inherit` (status foreground) |
 
-```tmux
-set -g @runcat-idle 3
-set -g @runcat-min-fps 4
-set -g @runcat-max-fps 0
-set -g @runcat-size medium
-set -g @runcat-skin pet-cats
-```
-
-The Pet Cats skin uses the first cat from [Pet Cats Pack by LuizMelo](https://luizmelo.itch.io/pet-cat-pack),
-bundled under CC0. Install the v7 fonts before selecting it. Both skins use foreground-colored glyphs, including on terminals with color-font support.
-Roaming inherits the status foreground unless `@runcat-color` is set.
-For example, `#[fg=cyan]#{@runcat-frame}` draws a cyan cat; eye details remain
-cutouts. Both skins work with custom base fonts and all four sizes. Skin changes
-apply live.
-
-| Activity                     | Pet Cats behavior                                               |
-| ---------------------------- | --------------------------------------------------------------- |
-| First key after sleep        | A short stretch, with continued typing still counted            |
-| Gentle typing                | Walk                                                            |
-| Sustained faster typing      | Ease into running, with uncapped speed following typing rate    |
-| Brief pause                  | Rotate between grooming, idle, scratching, meowing, and sitting |
-| Approaching the idle timeout | Lie down                                                        |
-| Idle timeout                 | Sleep with subtle breathing                                     |
-| Another 30 seconds of rest   | Alternate sleeping pose                                         |
-
-`@runcat-idle` is a maximum (2 seconds by default). After input pauses, the
-cat slows into a visible walk for up to 2 seconds, then performs one gesture:
-idle/sitting takes 0.5 seconds, meowing 1 second, and grooming/scratching
-3 seconds. It then lies down for 0.6 seconds and sleeps. Short gestures finish
-earlier rather than holding a static pose until the maximum timeout. Movement
-and bedtime phases compress for shorter timeouts. New input interrupts gestures
-and lying down immediately. A sleeping cat stays asleep when the timeout changes.
-Reactions use activity counts; no special Enter or Backspace bindings are added.
-The current action is exposed as `#{@runcat-state}` for optional status formats
-and troubleshooting.
-
-### Spinning and roaming
-
-Install the v7 font, then enable both features:
+## Spinning and roaming
 
 ```tmux
 set -g @runcat-skin pet-cats
-set -g @runcat-spin-chance 18
 set -g @runcat-roam on
-set -g @runcat-color cyan
+set -g @runcat-spin-chance 0
 ```
 
-While running, the cat gets one chance per second to start an OIIA-inspired
-spin in place. Its rotation speeds up and slows down with typing, up to
-`@runcat-max-fps` when that cap is set. It keeps
-rotating as long as you type, then resumes its usual
-rest behavior when typing pauses. Spins have an eight-second cooldown between
-starts and never delay the idle timeout. Set the chance to `0` to disable
-them. This is a visual expression; it does not play audio.
+Remove `#{@runcat-frame}` from your status format when roaming. The cat uses
+free space between the window list and right status, turns at either edge,
+and rests where it stops. Roaming needs a standard single-row status layout.
+It hides when there is no room.
 
-Roaming uses the standard single-row tmux status layout, including Powerline.
-The cat moves while walking or running, faces its direction of travel, and
-turns around at either edge. It rests where it stopped. The available path is
-measured for each client from its terminal width and rendered left status,
-window list, and right status, so resizing and changing window names resize
-the path. Positions retain fractional terminal cells; wider terminals do not
-increase speed. A full walking cycle covers one cat width, and a running cycle
-covers 1.5 widths. Walk/run transitions preserve footfall and fractional frame
-progress; the same smoothed cadence drives animation and travel. Resizing clamps
-the current position to the new path. Spinning and resting do not advance it.
-The cat hides when there is no room. Theme reloads preserve roaming.
-Remove `#{@runcat-frame}` from any stationary status segment when enabling
-roaming, so the cat is drawn once. Custom layouts without the standard
-right-aligned status block keep their existing layout.
+Typing wakes the cat and controls its speed. Pauses cycle through grooming,
+idle, scratching, body licking, meowing, and sitting before lying down and
+sleeping. Each pause selects one gesture. `@runcat-idle` sets the maximum delay;
+short gestures may finish earlier. New input interrupts rest.
 
-`@runcat-color` changes live and applies to all roaming poses in either direction,
-including spins and sleep. Invalid values fall back to inherited status foreground.
-Only the cat is styled; neighbouring status content keeps its own colours.
-Frame variables remain raw glyphs. For a stationary cat with a configured literal
-colour, use `#[fg=#{@runcat-color}]#{@runcat-frame}#[default]` in your status format;
-with `inherit`, omit that foreground wrapper to use the surrounding style.
+A positive spin chance enables spins while running, with an eight-second
+cooldown. Spins stop after typing pauses and do not move the cat.
 
-For terminals that support synchronized updates, add the tmux `sync` terminal
-feature before attaching a client. This presents fast status redraws together
-and avoids cursor flashes between partial updates. For Windows Terminal with
-`TERM=xterm-256color`, add this to your tmux configuration:
+## Colour
+
+Roaming inherits the status foreground. Set `@runcat-color` to override it;
+invalid values inherit. For a stationary cat, use a status style:
+
+```tmux
+set -g status-right '#[fg=cyan]#{@runcat-frame}#[default] | %H:%M '
+```
+
+## Compatibility
+
+The plugin needs the root `Any` binding and refuses to replace an existing
+custom binding. Specific shortcuts retain precedence. Mouse, paste, copy-mode,
+popup, and command-prompt input do not count as typing. Key contents are never
+read or stored. Reloads replace the worker; detached clients pause animation.
+
+For cursor flashes in Windows Terminal, add this before attaching a new client:
 
 ```tmux
 set -as terminal-features ',xterm-256color:sync'
 ```
-
-Then attach a new client.
-
-Running speed follows the last second's key rate: the minimum plus 0.75 FPS
-per key per second, with smooth acceleration and deceleration. There is no
-default maximum. Frames follow their own deadlines rather than a fixed 20 Hz
-update loop, with elapsed animation time preserved when a redraw is late.
-Actual redraw throughput depends on tmux and the terminal.
-
-After updating an existing server from an older version, run
-`tmux set -g @runcat-max-fps 0` to remove its previously saved limit.
-
-Size updates apply immediately, including while sleeping. Numeric aliases
-`1`, `2`, `3`, and `4` are accepted; invalid values use `medium`. All sizes share
-one font installation. The large preset uses more of the available row height,
-and `xlarge` uses the full existing line box, including the descent. The rest
-of the terminal keeps its normal font size. Install the v7 font to use `xlarge`.
-
-## Behavior
-
-The plugin reserves the root table's `Any` binding for counting ordinary keys
-and forwarding the original input. Specific bindings, including prefixes and
-your shortcuts, keep precedence. Mouse input is forwarded without counting it
-as typing, and bracketed paste bypasses the counter. Copy-mode, popup, and tmux
-command-prompt keys do not contribute to the typing rate.
-
-An existing custom root `Any` binding causes the loader to stop with an error;
-it is never silently overwritten. Other key tables and status formats are
-preserved. Repeated loads replace the worker generation, so code updates take
-effect while one worker per server remains active. Workers stop when the
-server stops and pause animation when clients detach.
-

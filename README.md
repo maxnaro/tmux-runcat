@@ -14,7 +14,7 @@ Existing installation paths and `@runcat-*` settings still apply.
   <img src="doc/assets/cat-light.gif" alt="A cat wakes, walks and runs across a tmux-style status bar, then settles down to sleep." width="720">
 </picture>
 
-*Illustration of the optional Pet Cats skin with roaming enabled.
+*Edited runtime demo of Pet Cats with roaming; cuts show separate pauses.
 [Enable this setup](doc/configuration.md#spinning-and-roaming).*
 
 [![Tests](https://github.com/maxnaro/tmux-runcat/actions/workflows/tests.yml/badge.svg?branch=main&event=push)](https://github.com/maxnaro/tmux-runcat/actions/workflows/tests.yml)
