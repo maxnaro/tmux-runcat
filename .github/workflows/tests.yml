@@ -1,0 +1,100 @@
+name: Tests
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+concurrency:
+  group: tests-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  rust:
+    name: Rust (${{ matrix.rust }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      matrix:
+        rust: ['1.89.0', stable]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - run: rustup toolchain install ${{ matrix.rust }} --profile minimal --component llvm-tools-preview
+      - run: rustup default ${{ matrix.rust }}
+      - if: matrix.rust != 'stable'
+        run: cargo test --all-targets --locked --offline
+      - if: matrix.rust == 'stable'
+        run: cargo install cargo-llvm-cov --version 0.6.21 --locked
+      - if: matrix.rust == 'stable'
+        run: |
+          mkdir -p target/coverage
+          cargo llvm-cov --all-targets --locked --offline --lcov --output-path target/coverage/rust.lcov
+      - if: matrix.rust == 'stable'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: rust-coverage
+          path: target/coverage/rust.lcov
+          retention-days: 14
+          if-no-files-found: error
+      - if: matrix.rust == 'stable'
+        uses: codecov/codecov-action@04b047e8bb82a0c002c8312c1c880fbc6a999d45 # v5
+        with:
+          files: target/coverage/rust.lcov
+          flags: rust
+          disable_search: true
+          fail_ci_if_error: true
+          token: ${{ secrets.CODECOV_TOKEN }}
+  tmux:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y libevent-dev libncurses-dev bison pkg-config
+          curl -fL https://github.com/tmux/tmux/releases/download/3.6/tmux-3.6.tar.gz -o "$RUNNER_TEMP/tmux.tar.gz"
+          echo "136db80cfbfba617a103401f52874e7c64927986b65b1b700350b6058ad69607  $RUNNER_TEMP/tmux.tar.gz" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/tmux.tar.gz" -C "$RUNNER_TEMP"
+          cd "$RUNNER_TEMP/tmux-3.6"
+          ./configure --prefix="$RUNNER_TEMP/tmux"
+          make -j2
+          make install
+          echo "$RUNNER_TEMP/tmux/bin" >> "$GITHUB_PATH"
+      - run: cargo build --release --locked --offline
+      - run: |
+          for test in tests/*_tmux.py; do
+            python3 "$test"
+          done
+  fonts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install coverage==7.10.7
+      - run: |
+          mkdir -p target/coverage
+          python -m coverage run -m unittest discover -s fonts/tests -p 'test_*.py'
+          python -m coverage combine
+          python -m coverage xml -o target/coverage/python.xml
+        env:
+          COVERAGE_RCFILE: ${{ github.workspace }}/.coveragerc
+          COVERAGE_FILE: ${{ github.workspace }}/target/coverage/.coverage
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: python-coverage
+          path: target/coverage/python.xml
+          retention-days: 14
+          if-no-files-found: error
+      - uses: codecov/codecov-action@04b047e8bb82a0c002c8312c1c880fbc6a999d45 # v5
+        with:
+          files: target/coverage/python.xml
+          flags: python
+          disable_search: true
+          fail_ci_if_error: true
+          token: ${{ secrets.CODECOV_TOKEN }}
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - shell: powershell
+        run: ./fonts/tests/test-windows-terminal.ps1
