@@ -22,7 +22,9 @@ jobs:
       - if: matrix.rust == 'stable'
         run: cargo install cargo-llvm-cov --version 0.6.21 --locked
       - if: matrix.rust == 'stable'
-        run: cargo llvm-cov --all-targets --locked --offline --lcov --output-path target/coverage/rust.lcov
+        run: |
+          mkdir -p target/coverage
+          cargo llvm-cov --all-targets --locked --offline --lcov --output-path target/coverage/rust.lcov
       - if: matrix.rust == 'stable'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
