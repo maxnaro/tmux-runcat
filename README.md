@@ -1,27 +1,30 @@
-# tmux-runcat
+# CAT: Cat at Terminal
 
-A small cat for your tmux status bar. It wakes when you type, runs faster as
-your typing speeds up without a speed cap, slows down, and curls up to sleep
-after two idle seconds.
-Each session has independent activity. Choose the classic silhouette or the
-expressive Pet Cats skin, which stretches, walks, runs, grooms, meows, and
-lies down before sleeping. When sleeping, the cat breathes gently
-over a three-second cycle. Choose a one-, two-, three-, or four-cell cat with
-`@runcat-size`. Its width stays fixed in both states at the selected size.
+A playful cat for your tmux status bar. It wakes when you type, runs faster
+as your typing speeds up, and curls up to sleep when you stop.
+Choose a classic silhouette or an expressive Pet Cats skin that can roam
+through your status bar. Activity is independent for each session.
 
-The loader and animation worker are one Rust executable with no third-party
-Rust dependencies. Key counting uses tmux commands; no process is started per
-keystroke, and the plugin never reads or stores key contents.
+The repository is currently `tmux-runcat`; the planned name is **tmux-CAT**.
+Existing installation paths and `@runcat-*` settings still apply.
 
-## Requirements
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="doc/assets/cat-dark.gif">
+  <source media="(prefers-color-scheme: light)" srcset="doc/assets/cat-light.gif">
+  <img src="doc/assets/cat-light.gif" alt="A cat wakes, walks and runs across a tmux-style status bar, then settles down to sleep." width="720">
+</picture>
 
-- tmux (tested against 3.6) on Linux or WSL
-- Rust 1.89+ and Cargo to build; the animation worker needs only tmux
-- Bash for the `.tmux` entry point
-- Python 3.11+, tar with xz support, and sha256sum for the one-time font setup
-- On WSL: Windows interoperability and Windows PowerShell for font installation
+_Edited runtime demo of Pet Cats with roaming; cuts show separate pauses.
+[Enable this setup](doc/configuration.md#spinning-and-roaming)._
 
-## Install
+[![Tests](https://github.com/maxnaro/tmux-runcat/actions/workflows/tests.yml/badge.svg?branch=main&event=push)](https://github.com/maxnaro/tmux-runcat/actions/workflows/tests.yml)
+[![Lint](https://github.com/maxnaro/tmux-runcat/actions/workflows/lint.yml/badge.svg?branch=main&event=push)](https://github.com/maxnaro/tmux-runcat/actions/workflows/lint.yml)
+
+## Quick start
+
+Requires Linux or WSL, tmux (tested with 3.6), Bash, Rust 1.89+ and Cargo.
+Font setup also needs Python 3.11+, tar with xz support, and sha256sum.
+WSL font installation needs Windows interoperability and Windows PowerShell.
 
 ```sh
 git clone https://github.com/maxnaro/tmux-runcat.git ~/.config/tmux/plugins/tmux-runcat
@@ -30,322 +33,39 @@ cargo build --release --locked --offline
 bash fonts/setup.sh
 ```
 
-The pinned font sources and build tools are bundled, so building the binary
-and fonts needs no network after cloning. Font setup installs both the clean
-JetBrainsMono Nerd Font family and `JetBrainsMono RunCat v10`, which adds
-the running and sleeping poses while preserving existing glyphs and spacing.
+Select **JetBrainsMono RunCat v10** in your terminal. WSL setup selects it in
+stable Windows Terminal automatically. Build and font sources are bundled;
+no network is needed after cloning.
+Optional patterned coats can be built with `bash fonts/setup.sh --fur tuxedo`;
+see [color coats](fonts/README.md#color-coats) for the other choices.
 
-On WSL, setup installs fonts on Windows and selects the combined font in stable
-Windows Terminal. On Linux, select `JetBrainsMono RunCat v10` in your terminal.
-See [font setup](fonts/README.md) for details and backups.
-
-To use your own base font, supply a regular monospaced static TrueType file:
-
-```sh
-bash fonts/setup.sh --base-font '/path/to/MyMono-Regular.ttf'
-```
-
-Setup creates a separate `<original family> RunCat v10` family, using the base
-font's spacing and height for all cat sizes. Add `--bold-font`, `--italic-font`,
-and `--bold-italic-font` for matching faces, or `--family` to choose the output
-family name. These options choose the base font during setup. The optional
-Windows Terminal coat selector switches between installed standard coat
-families; use `@runcat-coat font` to keep your own font selection.
-See [custom fonts](fonts/README.md#custom-base-fonts)
-for environment variables, supported formats, and reproducible setup.
-
-Include `#{@runcat-frame}` wherever you want the cat, and load the plugin after
-your status settings:
+Add to your tmux configuration, loading the plugin after your status settings:
 
 ```tmux
 set -g status-right '#{@runcat-frame} | #h | %H:%M '
 run-shell '~/.config/tmux/plugins/tmux-runcat/runcat.tmux "#{socket_path}" "#{pid}"'
 ```
 
-Pass the socket and PID as shown to support custom tmux sockets during startup.
 Reload with `tmux source-file ~/.config/tmux/tmux.conf`.
+The default is a stationary, two-cell classic cat that sleeps after two idle seconds.
 
-For TPM, add `set -g @plugin 'maxnaro/tmux-runcat'` to your plugin list. After
-TPM clones it, build the binary, run font setup, add the status placeholder,
-and reload tmux. The entry point uses the current `TMUX` environment when no
-socket arguments are supplied.
+## Documentation
 
-## Options
+- [Installation](doc/installation.md): TPM, updates, custom sockets, and dotfiles submodules.
+- [Configuration](doc/configuration.md): skins, sizes, colours, roaming, spinning, wall reactions, and input behaviour.
+- [Font setup](fonts/README.md): Linux, WSL, custom fonts, color coats, and backups.
+- [Development](doc/development.md): builds, tests, CI, coverage, and artwork credits.
 
-Set these before loading the plugin; existing values are preserved. Animation
-and solid-color settings apply live. `@runcat-coat` is applied on the next
-plugin load or client attach.
+The plugin counts activity without reading or storing key contents.
+The running plugin needs only tmux; no process starts per keystroke.
 
-| Option | Default | Meaning |
-| --- | --- | --- |
-| `@runcat-idle` | `2` | Maximum idle seconds before sleeping (0.1–3600); Pet Cats may finish short gestures earlier |
-| `@runcat-min-fps` | `3` | Minimum running speed (1–20 FPS) |
-| `@runcat-max-fps` | `0` | `0` or `unlimited` removes the cap; a positive FPS value sets an optional limit |
-| `@runcat-size` | `medium` | `small` (1 cell), `medium` (2 cells), `large` (3 cells), or `xlarge` (4 cells) |
-| `@runcat-skin` | `classic` | `classic` or `pet-cats` |
-| `@runcat-spin-chance` | `0` | Pet Cats: percent chance per second of running to start an OIIA-style spin (0–100) |
-| `@runcat-roam` | `off` | `on` lets the cat pace through the free space between the window list and right status |
-| `@runcat-wall-chance` | `35` | Pet Cats while roaming: chance to react at an end (0–100); bumps require running |
-| `@runcat-wall-debug` | `off` | Pet Cats while roaming: automatically run and play each edge reaction in order |
-| `@runcat-color` | `inherit` | Roaming foreground: ANSI color name, `colour0`–`colour255`, `#RRGGBB`, `default`, or `inherit` |
-| `@runcat-coat` | `font` | Windows Terminal/WSL: keep the selected font, choose `random` on startup/reload/attach, or select a named color coat |
+## License
 
-```tmux
-set -g @runcat-idle 3
-set -g @runcat-min-fps 4
-set -g @runcat-max-fps 0
-set -g @runcat-size medium
-set -g @runcat-skin pet-cats
-```
+Copyright (c) 2026 Max Narongchai. Licensed under the
+[GNU General Public License v3.0 only](LICENSE) (`GPL-3.0-only`).
+Distributed modified versions must remain under GPLv3, with corresponding
+source provided as required by the license. Private modifications do not
+require publication.
 
-The Pet Cats skin uses the first cat from [Pet Cats Pack by LuizMelo](https://luizmelo.itch.io/pet-cat-pack),
-bundled under CC0. Install the v10 fonts before selecting it. With the default
-monochrome font (`--fur mono`), both skins use foreground-colored glyphs.
-Roaming inherits the status foreground unless `@runcat-color` is set.
-For example, `#[fg=cyan]#{@runcat-frame}` draws a cyan cat; eye details remain
-cutouts. Both skins work with custom base fonts and all four sizes. Skin changes
-apply live.
-
-### Solid foreground or patterned coats
-
-Appearance is independent of motion: solid colors and patterned coats both
-work with ordinary animation, roaming, spinning, and wall reactions.
-
-For a **solid-colored cat**, select the monochrome `JetBrainsMono RunCat v10`
-family. If you need to build/install it, run:
-
-```sh
-tmux set -g @runcat-coat font
-bash fonts/setup.sh --fur mono
-```
-
-On WSL, setup selects the family in Windows Terminal. On Linux, select it in
-your terminal. If it is already installed, you can select it directly. Add
-these settings before loading the plugin:
-
-```tmux
-set -g @runcat-skin pet-cats
-set -g @runcat-coat font
-set -g @runcat-roam on
-set -g @runcat-color cyan
-```
-
-Use `@runcat-color inherit` to follow the status foreground instead. This
-option colors only the roaming cat. For a stationary cat, style its status
-placeholder, for example `#[fg=cyan]#{@runcat-frame}#[default]`.
-
-For a **patterned coat**, build/install a colored family, for example:
-
-```sh
-bash fonts/setup.sh --fur tuxedo
-```
-
-The six coat names are `tabby` (brown tabby), `orange-tabby`, `silver-tabby`,
-`black`, `tuxedo`, and `calico`. Keep `@runcat-skin pet-cats`. Each family
-contains the coat for every motion and size. See [coat installation and
-family names](fonts/README.md#color-coats) to install one or all six.
-
-For automatic selection on Windows Terminal/WSL, set `@runcat-coat` before
-loading the plugin:
-
-| Value | Effect |
-| --- | --- |
-| `font` (default) | Disable automatic font changes; keep the selected family or choose one manually |
-| A coat name, such as `tuxedo` | Select that installed coat on load or attach |
-| `random` | Choose an installed coat on startup, reload, or attach/reattach; avoid immediately repeating the current one when several are installed |
-
-```tmux
-set -g @runcat-skin pet-cats
-set -g @runcat-coat random
-```
-
-The chosen coat stays fixed during its motions. The attach hook runs in the
-background without restarting the worker; `@runcat-coat-picked` reports the
-last selection. This selector uses the standard JetBrainsMono coat families
-and changes the configured Windows Terminal profiles, so the choice is shared
-across those profiles. On other terminals, select an installed family manually.
-
-Coat colors are fixed in the font: `@runcat-color` does not recolor them.
-`@runcat-coat font` stops automatic changes but keeps the current coat. To
-return to a solid color, also select the monochrome v10 family as shown above.
-Color coats require COLR/CPAL support; other renderers show the monochrome
-fallback.
-
-### Expressive behavior
-
-| Activity | Pet Cats behavior |
-| --- | --- |
-| First key after sleep | A short stretch, with continued typing still counted |
-| Gentle typing | Walk |
-| Sustained faster typing | Ease into running, with uncapped speed following typing rate |
-| Brief pause | Rotate between grooming, idle, scratching, meowing, and sitting |
-| Approaching the idle timeout | Lie down |
-| Idle timeout | Sleep with subtle breathing |
-| Another 30 seconds of rest | Alternate sleeping pose |
-
-`@runcat-idle` is a maximum (2 seconds by default). After input pauses, the
-cat slows into a visible walk for up to 2 seconds, performs one gesture, then
-lies down and sleeps. Short gestures finish earlier. New input interrupts
-gestures and lying down immediately. There is no Zzz text or audio.
-Reactions use activity counts; no special Enter or Backspace bindings are added.
-The current action is exposed as `#{@runcat-state}` for optional status formats
-and troubleshooting.
-
-### Spinning and roaming
-
-Install the v10 font, then enable both features:
-
-```tmux
-set -g @runcat-skin pet-cats
-set -g @runcat-spin-chance 18
-set -g @runcat-roam on
-set -g @runcat-wall-chance 35
-```
-
-While running, the cat gets one chance per second to start an OIIA-inspired
-spin in place. Its rotation speeds up and slows down with typing, up to
-`@runcat-max-fps` when that cap is set. It keeps
-rotating as long as you type, then resumes its usual
-rest behavior when typing pauses. Spins have an eight-second cooldown between
-starts and never delay the idle timeout. Set the chance to `0` to disable
-them. This is a visual expression; it does not play audio.
-
-Roaming uses the standard single-row tmux status layout, including Powerline.
-The cat moves while walking or running, faces its direction of travel, and
-turns around at either edge. It rests where it stopped. The available path is
-measured for each client from its terminal width and rendered left status,
-window list, and right status, so resizing and changing window names resize
-the path. Positions retain fractional terminal cells, so width does not
-change speed. Walking travels one cat width per gait cycle and running travels
-1.5 widths; footfalls and travel share the same cadence. Spinning and resting
-do not move the cat. The cat hides when there is no room. Theme reloads
-preserve roaming.
-Remove `#{@runcat-frame}` from any stationary status segment when enabling
-roaming, so the cat is drawn once. Custom layouts without the standard
-right-aligned status block keep their existing layout.
-
-At either end, a running Pet Cats cat has a 35% chance to react before turning.
-A walking cat may stretch upward and scratch. A running cat may scratch,
-bump its head and stumble back, or leap at the edge and bounce back.
-While running, head bump and parkour are each twice as likely as scratch;
-walking keeps scratch at its previous frequency. Set
-`@runcat-wall-chance 0` to disable reactions. At `100`, every running arrival
-reacts; walking still scratches less frequently. During parkour, it turns at
-the edge before running back. Each attached client reacts independently when
-its cat reaches its own edge.
-
-To inspect every edge animation without typing, enable debug mode:
-
-```tmux
-set -g @runcat-skin pet-cats
-set -g @runcat-roam on
-set -g @runcat-wall-debug on
-```
-
-The cat runs between the ends and plays head bump, wall scratch, and
-parkour in that order, then repeats. Debug mode ignores
-`@runcat-wall-chance` and disables spinning while active. Set
-`@runcat-wall-debug off` to resume normal behavior. Turning it on again starts
-the sequence from head bump.
-
-### Disabling optional motions
-
-Coats, solid-color overrides, spinning, roaming, and wall reactions are
-independently configurable. To keep the usual cat animation and roaming
-without spins or wall reactions:
-
-```tmux
-set -g @runcat-spin-chance 0
-set -g @runcat-wall-debug off
-set -g @runcat-wall-chance 0
-```
-
-Debug must be off because it deliberately overrides the wall chance. An edge
-action already playing may finish. Head bump, scratch, and parkour share the
-wall chance; there are no separate switches for each action.
-
-Set `@runcat-roam off` to stop pacing as well. Keep `#{@runcat-frame}` in a
-stationary status segment, as in the installation example, so the cat remains
-visible. To disable automatic coat changes separately, use `@runcat-coat font`.
-
-### Status redraws and sizing
-
-For terminals that support synchronized updates, add the tmux `sync` terminal
-feature before attaching a client. This presents fast status redraws together
-and avoids cursor flashes between partial updates. For Windows Terminal with
-`TERM=xterm-256color`, add this to your tmux configuration:
-
-```tmux
-set -as terminal-features ',xterm-256color:sync'
-```
-
-Then attach a new client.
-
-Running speed follows the last second's key rate: the minimum plus 0.75 FPS
-per key per second, with smooth acceleration and deceleration. There is no
-default maximum. Frames follow their own deadlines rather than a fixed 20 Hz
-update loop, with elapsed animation time preserved when a redraw is late.
-Actual redraw throughput depends on tmux and the terminal.
-
-After updating an existing server from an older version, run
-`tmux set -g @runcat-max-fps 0` to remove its previously saved limit.
-
-Size updates apply immediately, including while sleeping. Numeric aliases
-`1`, `2`, `3`, and `4` are accepted; invalid values use `medium`. All sizes share
-one font installation. The large preset uses more of the available row height,
-and `xlarge` uses the full existing line box, including the descent. The rest
-of the terminal keeps its normal font size. Install the v10 font to use `xlarge`.
-
-## Behavior
-
-The plugin reserves the root table's `Any` binding for counting ordinary keys
-and forwarding the original input. Specific bindings, including prefixes and
-your shortcuts, keep precedence. Mouse input is forwarded without counting it
-as typing, and bracketed paste bypasses the counter. Copy-mode, popup, and tmux
-command-prompt keys do not contribute to the typing rate.
-
-An existing custom root `Any` binding causes the loader to stop with an error;
-it is never silently overwritten. Other key tables and status formats are
-preserved. Repeated loads replace the worker generation, so code updates take
-effect while one worker per server remains active. Workers stop when the
-server stops and pause animation when clients detach.
-
-## Use as a dotfiles submodule
-
-```sh
-git submodule add git@github.com:maxnaro/tmux-runcat.git tmux/.config/tmux/plugins/tmux-runcat
-git submodule update --init --recursive
-cargo build --release --locked --offline --manifest-path tmux/.config/tmux/plugins/tmux-runcat/Cargo.toml
-bash tmux/.config/tmux/plugins/tmux-runcat/fonts/setup.sh
-```
-
-Commit plugin changes in this repository first, then update its pointer in the
-parent dotfiles repository. Rebuild the executable after updating the plugin.
-
-## Development
-
-```sh
-cargo fmt --check
-cargo clippy --locked --offline --all-targets -- -D warnings
-cargo test --locked --offline
-cargo build --release --locked --offline
-python3 fonts/tests/test_build.py
-python3 tests/live_tmux.py
-python3 tests/roaming_tmux.py
-python3 tests/coat_tmux.py
-bash -n runcat.tmux fonts/setup.sh fonts/select-coat.sh
-```
-
-The live test starts an isolated tmux server and PTY, checking Pet Cats actions,
-live skin changes, fast redraws,
-input forwarding, idle/wake behavior, mouse events, prefix shortcuts, live
-settings, and reloads.
-Font tests verify repeatable builds, preserved character mappings, spacing,
-font features, custom base fonts, and running/sleeping glyph geometry.
-On Windows, `powershell.exe -NoProfile -ExecutionPolicy Bypass -File
-fonts/tests/test-windows-terminal.ps1` checks terminal settings using temporary
-files. Build outputs stay in
-`target/` and the user's data directory. Set `RUNCAT_BINARY` to run an alternate
-executable through the shell entry point.
-
-Third-party font sources and their licenses are in `fonts/` and `fonts/vendor/`.
+Bundled third-party fonts and tools retain their own licenses; see
+[fonts/LICENSE](fonts/LICENSE) and [fonts/vendor/](fonts/vendor/).

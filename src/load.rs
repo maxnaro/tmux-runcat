@@ -67,6 +67,45 @@ pub fn coat(plugin: &Path, socket: Option<&OsStr>) -> io::Result<()> {
     select_coat(&Tmux::new(&socket), plugin)
 }
 
+pub(crate) fn migrate_published_state(tmux: &Tmux, session: Option<&str>) -> io::Result<()> {
+    let target = match session {
+        Some(session) => vec!["-t", session],
+        None => vec!["-g"],
+    };
+    let mut arguments = vec!["show-options"];
+    arguments.extend(&target);
+    let output = tmux.output(arguments)?;
+    for line in String::from_utf8_lossy(&output.stdout).lines() {
+        let Some(name) = line.split_whitespace().next() else {
+            continue;
+        };
+        let state = matches!(name, "@runcat-frame" | "@runcat-state");
+        let lane = name
+            .strip_prefix("@runcat-client-")
+            .is_some_and(|pid| pid.parse::<u32>().is_ok());
+        if !state && !lane {
+            continue;
+        }
+        if state {
+            let mut arguments = vec!["show-options", "-v"];
+            arguments.extend(&target);
+            arguments.push(name);
+            let value = tmux.output(arguments)?;
+            let value = String::from_utf8_lossy(&value.stdout);
+            let mut arguments = vec!["set-environment", "-h"];
+            arguments.extend(&target);
+            arguments.extend([name, value.trim_end_matches('\n')]);
+            tmux.execute(arguments)?;
+        }
+        // Attached clients receive fresh lanes; obsolete lanes need no copy.
+        let mut arguments = vec!["set-option", "-qu"];
+        arguments.extend(&target);
+        arguments.push(name);
+        tmux.execute(arguments)?;
+    }
+    Ok(())
+}
+
 pub fn run(plugin: &Path, explicit: Option<(&OsStr, &OsStr)>) -> io::Result<()> {
     if !plugin.is_dir() {
         return Err(io::Error::other("plugin directory does not exist"));
@@ -74,18 +113,17 @@ pub fn run(plugin: &Path, explicit: Option<(&OsStr, &OsStr)>) -> io::Result<()> 
     let (socket, pid) = context(explicit)?;
     let tmux = Tmux::new(&socket);
     let existing = tmux.output(["list-keys", "-T", "root", "Any"])?;
+    let binding = String::from_utf8_lossy(&existing.stdout);
     if existing.status.success()
         && !existing.stdout.is_empty()
-        && !String::from_utf8_lossy(&existing.stdout).contains("@runcat-keys")
+        && !binding.contains("@runcat-keys")
+        && !binding.contains("TMUX_RUNCAT_KEYS")
     {
         return Err(io::Error::other(
             "root Any is already bound; remove that binding before loading tmux-runcat",
         ));
     }
     for (name, value) in [
-        ("@runcat-frame", SLEEP_POSE),
-        ("@runcat-state", "sleep"),
-        ("@runcat-keys", "0"),
         ("@runcat-idle", "2"),
         ("@runcat-min-fps", "3"),
         ("@runcat-max-fps", "0"),
@@ -102,11 +140,27 @@ pub fn run(plugin: &Path, explicit: Option<(&OsStr, &OsStr)>) -> io::Result<()> 
             tmux.execute(["set-option", "-g", name, value])?;
         }
     }
+    migrate_published_state(&tmux, None)?;
+    for (name, value) in [
+        ("TMUX_RUNCAT_KEYS", "0"),
+        ("@runcat-frame", SLEEP_POSE),
+        ("@runcat-state", "sleep"),
+    ] {
+        if !tmux
+            .output(["show-environment", "-gh", name])?
+            .status
+            .success()
+        {
+            tmux.execute(["set-environment", "-gh", name, value])?;
+        }
+    }
     // Only load and attachment events switch fonts; the worker keeps animating.
     if let Err(error) = select_coat(&tmux, plugin) {
         eprintln!("tmux-runcat: coat selection failed; keeping the current font: {error}");
     }
-    tmux.source("bind-key -T root Any if-shell -F '#{!=:#{mouse_x},}' {\n    send-keys -M\n} {\n    set-option -F @runcat-keys '#{e|+:#{@runcat-keys},1}'\n    send-keys\n}\n")?;
+    // Hidden environment updates avoid pane redraws; the global default also
+    // works when loading before the first session.
+    tmux.source("bind-key -T root Any if-shell -F '#{!=:#{mouse_x},}' {\n    send-keys -M\n} {\n    set-environment -hF TMUX_RUNCAT_KEYS '#{e|+:#{TMUX_RUNCAT_KEYS},1}'\n    send-keys\n}\n")?;
     let executable = env::current_exe()?;
     let selection = shell_command(&[
         executable.as_os_str(),

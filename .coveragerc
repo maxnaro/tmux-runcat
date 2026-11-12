@@ -1,0 +1,8 @@
+[run]
+source = fonts
+omit =
+    fonts/tests/*
+    fonts/vendor/*
+patch = subprocess
+parallel = true
+relative_files = true

@@ -38,7 +38,7 @@ def main():
             return subprocess.check_output(command + list(args), env=environment, text=True).rstrip("\r\n")
 
         def option(name):
-            return run("show-option", "-v", "-t", "test", name)
+            return run("display-message", "-p", "-t", "test", "#{" + name + "}")
 
         def wait_for(predicate, message, timeout=4):
             deadline = time.monotonic() + timeout
@@ -139,14 +139,14 @@ def main():
             wait_for(lambda: len(lane()) == 150 - len("LEFT[W]RIGHT"), "first client lane changed")
             deadline = time.monotonic() + 2.5
             while time.monotonic() < deadline:
-                run("set-option", "-F", "-t", "test", "@runcat-keys", "#{e|+:#{@runcat-keys},1}")
+                run("set-environment", "-hF", "-t", "test", "TMUX_RUNCAT_KEYS", "#{e|+:#{TMUX_RUNCAT_KEYS},1}")
                 time.sleep(0.05)
                 assert abs(position() - position(second_name)) <= 1, "terminal width changed stride length"
             assert position() > 5, "cat did not travel"
             run("detach-client", "-t", second_name)
             second_client.wait(timeout=3)
             second_pid = second_client.pid
-            wait_for(lambda: not run("show-option", "-qv", "-t", "test", f"@runcat-client-{second_pid}"),
+            wait_for(lambda: not run("display-message", "-p", "-t", "test", f"#{{@runcat-client-{second_pid}}}"),
                      "detached client lane was not removed")
 
             # A status command needs time to finish while the cat animates.
@@ -157,7 +157,7 @@ def main():
                 f"#(sleep 0.25; touch {shlex.quote(str(left_ready))}; printf LEFT)")
             run("set-option", "-g", "status-right",
                 f"#(sleep 0.25; touch {shlex.quote(str(right_ready))}; printf RIGHT)")
-            run("set-option", "-F", "-t", "test", "@runcat-keys", "#{e|+:#{@runcat-keys},80}")
+            run("set-environment", "-hF", "-t", "test", "TMUX_RUNCAT_KEYS", "#{e|+:#{TMUX_RUNCAT_KEYS},80}")
             wait_for(lambda: left_ready.exists() and right_ready.exists(),
                      "status commands were restarted by the animation", timeout=2)
 
@@ -171,7 +171,7 @@ def main():
             observed, positions = set(), []
             deadline = time.monotonic() + 8
             while time.monotonic() < deadline:
-                run("set-option", "-F", "-t", "test", "@runcat-keys", "#{e|+:#{@runcat-keys},3}")
+                run("set-environment", "-hF", "-t", "test", "TMUX_RUNCAT_KEYS", "#{e|+:#{TMUX_RUNCAT_KEYS},3}")
                 time.sleep(0.06)
                 glyphs = lane().strip()
                 mirrored = bool(glyphs) and all(0x101000 <= ord(ch) < 0x10135C for ch in glyphs)
@@ -187,7 +187,7 @@ def main():
             states = set()
             deadline = time.monotonic() + 3
             while time.monotonic() < deadline:
-                run("set-option", "-F", "-t", "test", "@runcat-keys", "#{e|+:#{@runcat-keys},8}")
+                run("set-environment", "-hF", "-t", "test", "TMUX_RUNCAT_KEYS", "#{e|+:#{TMUX_RUNCAT_KEYS},8}")
                 states.add(option("@runcat-state"))
                 if "spin" in states:
                     pose = option("@runcat-frame")
@@ -197,7 +197,7 @@ def main():
             assert "spin" in states, states
             until = time.monotonic() + 1.7
             while time.monotonic() < until:
-                run("set-option", "-F", "-t", "test", "@runcat-keys", "#{e|+:#{@runcat-keys},8}")
+                run("set-environment", "-hF", "-t", "test", "TMUX_RUNCAT_KEYS", "#{e|+:#{TMUX_RUNCAT_KEYS},8}")
                 time.sleep(0.06)
                 assert option("@runcat-state") == "spin", "spin stopped while typing continued"
                 assert "#[fg=cyan]" in styled_lane(), "spin changed color"

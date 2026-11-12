@@ -145,7 +145,8 @@ and line metrics. These supplementary private-use ranges avoid Nerd Font
 icon collisions. Font setup
 creates Unicode format 12 character maps when a custom base lacks one.
 
-Enable `@runcat-spin-chance` and `@runcat-roam` as described in the main README.
+Enable `@runcat-spin-chance` and `@runcat-roam` as described in the
+[configuration guide](../doc/configuration.md#spinning-and-roaming).
 The spinner is built from small procedural cat geometry in `spinning_cat.py`;
 the wall reactions use native Cat-1 pixels with added motion in `wall_cat.py`
 and `parkour_cat.py`.
