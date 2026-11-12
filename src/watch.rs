@@ -10,7 +10,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 const POLL: Duration = Duration::from_millis(50);
-const FORMAT: &str = "#{client_name}\t#{session_id}\t#{@runcat-keys}\t#{@runcat-idle}\t#{@runcat-min-fps}\t#{@runcat-max-fps}\t#{@runcat-size}\t#{@runcat-skin}\t#{@runcat-spin-chance}";
+const FORMAT: &str = "#{client_name}\t#{session_id}\t#{TMUX_RUNCAT_KEYS}\t#{@runcat-idle}\t#{@runcat-min-fps}\t#{@runcat-max-fps}\t#{@runcat-size}\t#{@runcat-skin}\t#{@runcat-spin-chance}";
 
 struct Session {
     count: u64,
@@ -20,6 +20,7 @@ struct Session {
 }
 
 struct Client {
+    name: String,
     pid: u32,
     room: i32,
 }
@@ -52,6 +53,7 @@ fn parse_clients(lines: impl Iterator<Item = String>) -> HashMap<String, Session
             });
         if !session.clients.iter().any(|client| client.pid == pid) {
             session.clients.push(Client {
+                name: fields[0].to_owned(),
                 pid,
                 room: fields[10].parse().unwrap_or(-1),
             });
@@ -60,12 +62,13 @@ fn parse_clients(lines: impl Iterator<Item = String>) -> HashMap<String, Session
     sessions
 }
 
-fn publish_option(commands: &mut Vec<String>, session: &str, name: &str, value: String) {
+fn publish_environment(commands: &mut Vec<String>, session: &str, name: &str, value: String) {
     if !commands.is_empty() {
         commands.push(";".to_owned());
     }
     commands.extend([
-        "set-option".to_owned(),
+        "set-environment".to_owned(),
+        "-h".to_owned(),
         "-t".to_owned(),
         session.to_owned(),
         name.to_owned(),
@@ -97,6 +100,12 @@ pub fn run(socket: &OsStr, pid: &OsStr, generation: &str) -> io::Result<()> {
         }
     }
     let tmux = Tmux::new(socket);
+    // The previous worker has released the lock, so it cannot recreate legacy
+    // options that would mask the hidden environment entries.
+    let sessions = tmux.output(["list-sessions", "-F", "#{session_id}"])?;
+    for session in String::from_utf8_lossy(&sessions.stdout).lines() {
+        crate::load::migrate_published_state(&tmux, Some(session))?;
+    }
     let start = Instant::now();
     let mut animations: HashMap<String, Animation> = HashMap::new();
     let mut published: HashMap<String, (String, &'static str)> = HashMap::new();
@@ -152,7 +161,7 @@ pub fn run(socket: &OsStr, pid: &OsStr, generation: &str) -> io::Result<()> {
         }
         animations.retain(|session, _| sessions.contains_key(session));
         published.retain(|session, _| sessions.contains_key(session));
-        // Remove client options after detach/session switches rather than
+        // Remove client state after detach/session switches rather than
         // leaving stale lanes in a long-running server.
         let mut stale = Vec::new();
         views.retain(|pid, view| {
@@ -167,8 +176,8 @@ pub fn run(socket: &OsStr, pid: &OsStr, generation: &str) -> io::Result<()> {
         });
         for (session, pid) in stale {
             let _ = tmux.output([
-                "set-option",
-                "-qu",
+                "set-environment",
+                "-u",
                 "-t",
                 &session,
                 &format!("@runcat-client-{pid}"),
@@ -191,19 +200,22 @@ pub fn run(socket: &OsStr, pid: &OsStr, generation: &str) -> io::Result<()> {
             next_update = next_update.min(animation.next_update());
             let snapshot = (pose.clone(), animation.state());
             let previous = published.get(&session);
+            let mut changed = false;
             if previous.is_none_or(|last| last.0 != pose) {
-                publish_option(&mut update, &session, "@runcat-frame", pose);
+                publish_environment(&mut update, &session, "@runcat-frame", pose);
+                changed = true;
             }
             if previous.is_none_or(|last| last.1 != animation.state()) {
-                publish_option(
+                publish_environment(
                     &mut update,
                     &session,
                     "@runcat-state",
                     animation.state().to_owned(),
                 );
+                changed = true;
             }
             if roaming {
-                for client in activity.clients {
+                for client in &activity.clients {
                     let view = views.entry(client.pid).or_insert_with(|| View {
                         session: session.clone(),
                         ..View::default()
@@ -216,14 +228,26 @@ pub fn run(socket: &OsStr, pid: &OsStr, generation: &str) -> io::Result<()> {
                         &activity.color,
                     );
                     if view.published.as_ref() != Some(&lane) {
-                        publish_option(
+                        publish_environment(
                             &mut update,
                             &session,
                             &format!("@runcat-client-{}", client.pid),
                             lane.clone(),
                         );
                         view.published = Some(lane);
+                        changed = true;
                     }
+                }
+            }
+            if changed {
+                for client in &activity.clients {
+                    update.extend([
+                        ";".to_owned(),
+                        "refresh-client".to_owned(),
+                        "-S".to_owned(),
+                        "-t".to_owned(),
+                        client.name.clone(),
+                    ]);
                 }
             }
             published.insert(session, snapshot);

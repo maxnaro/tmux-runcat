@@ -49,6 +49,9 @@ The plugin needs the root `Any` binding and refuses to replace an existing
 custom binding. Specific shortcuts retain precedence. Mouse, paste, copy-mode,
 popup, and command-prompt input do not count as typing. Key contents are never
 read or stored. Reloads replace the worker; detached clients pause animation.
+The activity counter and animation use hidden tmux environment state, which is
+never exported to pane processes. Counting keys and updating animation refresh
+only the affected status lines. Existing `#{@runcat-frame}` formats still work.
 
 For cursor flashes in Windows Terminal, add this before attaching a new client:
 
