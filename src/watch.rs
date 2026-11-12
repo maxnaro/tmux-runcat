@@ -111,11 +111,11 @@ pub fn run(socket: &OsStr, pid: &OsStr, generation: &str) -> io::Result<()> {
     let mut published: HashMap<String, (String, &'static str)> = HashMap::new();
     let mut views: HashMap<u32, View> = HashMap::new();
     let mut synced = None;
-    let list_clients = format!(
+    let client_format = format!(
         // L: builds a format tree owned by each attached client. This reuses
         // its status-command cache; a normal list-clients tree belongs to the
         // short-lived querying process and loses asynchronous job results.
-        "list-clients -F '#{{L:#{{?#{{==:#{{session_name}},#{{client_session}}}},{FORMAT}\t#{{client_pid}}\t{}\t#{{@runcat-color}}\n,}}}}'",
+        "#{{L:#{{?#{{==:#{{session_name}},#{{client_session}}}},{FORMAT}\t#{{client_pid}}\t{}\t#{{@runcat-color}}\n,}}}}",
         crate::track::room_format()
     );
     loop {
@@ -134,17 +134,27 @@ pub fn run(socket: &OsStr, pid: &OsStr, generation: &str) -> io::Result<()> {
             "-gqv",
             "@runcat-roam",
             ";",
-            // list-clients also requires a session, even without -t. The
-            // format-only conditional can safely run before the first one.
-            "if-shell",
+            // Run directly: tmux 3.6 leaks parsed command lists when if-shell
+            // receives a command string. At 20 polls/second this grows overnight.
+            "list-clients",
             "-F",
-            "#{session_id}",
-            &list_clients,
+            &client_format,
         ])?;
         let text = String::from_utf8_lossy(&output.stdout);
         let mut lines = text.lines();
-        if !output.status.success() || lines.next() != Some(generation) {
+        if lines.next() != Some(generation) {
             return Ok(());
+        }
+        if !output.status.success() {
+            // A fresh server can run its config before creating a session.
+            // Only tolerate the absent-session case; surface other query errors.
+            if tmux.output(["has-session"])?.status.success() {
+                return Err(io::Error::other(
+                    String::from_utf8_lossy(&output.stderr).into_owned(),
+                ));
+            }
+            thread::sleep(POLL);
+            continue;
         }
         let status_format = lines.next().unwrap_or("");
         let roaming = matches!(lines.next(), Some("on" | "1"));
