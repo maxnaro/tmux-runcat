@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import zipfile
 
 FONT_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(FONT_DIR / "vendor/fonttools-4.67.0-py3-none-any.whl"))
@@ -18,6 +19,9 @@ from fontTools.fontBuilder import FontBuilder
 from fontTools.pens.ttGlyphPen import TTGlyphPen
 from fontTools.ttLib import TTFont, newTable
 import pet_cats
+import wall_cat
+import tabby_cat
+import cat_coats
 
 
 class FontBuildTests(unittest.TestCase):
@@ -73,7 +77,7 @@ class FontBuildTests(unittest.TestCase):
 
     def test_sleep_pose_is_bundled_and_fits_two_cells(self):
         font = TTFont(self.data / "generated/RunCat-Regular.ttf")
-        self.assertEqual(font["name"].getDebugName(1), "JetBrainsMono RunCat v7")
+        self.assertEqual(font["name"].getDebugName(1), "JetBrainsMono RunCat v10")
         for code in range(0xEFFA, 0xF000):
             name = font.getBestCmap()[code]
             glyph = font["glyf"][name]
@@ -133,9 +137,10 @@ class FontBuildTests(unittest.TestCase):
             self.assertGreater(heights[3], heights[2] * 1.25)
 
     def test_pet_cats_inherit_foreground_and_fit_all_sizes(self):
-        frames, layout, _ = pet_cats.poses()
-        self.assertEqual(len(frames), 172)
-        self.assertEqual(len(layout), 1720)
+        frames, layout, bounds = pet_cats.poses()
+        self.assertEqual(len(frames), 296)
+        self.assertEqual(len(layout), 2960)
+        self.assertEqual(bounds, (10, 40, 18, 34))
         for style in ("Regular", "Bold", "Italic", "BoldItalic"):
             font = TTFont(self.data / f"generated/RunCat-{style}.ttf")
             self.assertNotIn("COLR", font)
@@ -156,13 +161,46 @@ class FontBuildTests(unittest.TestCase):
                 return max(glyph.yMax for glyph in glyphs) - min(glyph.yMin for glyph in glyphs)
             self.assertGreater(run_height(4), run_height(3) * 1.3)
 
+    def test_parkour_launch_is_distinct_from_head_bump_and_reaches_the_edge(self):
+        timeline = [line.split("\t") for line in (FONT_DIR / "pet-cats/parkour.tsv").read_text().splitlines()
+                    if line and not line.startswith("#")]
+        count = len(timeline)
+        self.assertEqual(sum(int(duration) for _, duration in timeline), 2400)
+        with zipfile.ZipFile(FONT_DIR / "vendor/Pet-Cats-Pack.zip") as archive:
+            for frame in range(5):
+                self.assertNotEqual(wall_cat.pixels("wall-parkour", frame, count, archive),
+                                    wall_cat.pixels("wall-bump", frame, 20, archive))
+            for frame in range(count):
+                pixels = wall_cat.pixels("wall-parkour", frame, count, archive)
+                occupied = [(x, y) for y, row in enumerate(pixels)
+                            for x, pixel in enumerate(row) if pixel[3]]
+                self.assertTrue(occupied)
+                self.assertLessEqual(max(x for x, _ in occupied), 39)
+                self.assertGreaterEqual(min(y for _, y in occupied), 16)
+                self.assertLessEqual(max(y for _, y in occupied), 31)
+            contact = wall_cat.pixels("wall-parkour", 5, count, archive)
+            self.assertGreaterEqual(max(x for row in contact for x, pixel in enumerate(row)
+                                        if pixel[3]), 38)
+            centers = []
+            for frame in range(5, 17):
+                pixels = wall_cat.pixels("wall-parkour", frame, count, archive)
+                xs = [x for row in pixels
+                      for x, pixel in enumerate(row) if pixel[3]]
+                centers.append(sum(xs) / len(xs))
+                self.assertTrue(any(pixels[y][39][3] for y in range(27, 32)),
+                                f"parkour frame {frame} lost its planted paw")
+                self.assertGreaterEqual(len(xs), 100, f"parkour frame {frame} lost body volume")
+            self.assertLessEqual(max(abs(right-left) for left, right in
+                                     zip(centers, centers[1:])), 5)
+
     def test_spinning_and_mirrored_glyphs_preserve_width_and_face_the_other_way(self):
         frames, layout, _ = pet_cats.poses()
         font = TTFont(self.data / "generated/RunCat-Regular.ttf")
         self.assertEqual(sum(frame["action"] == "spin" for frame in frames), 32)
-        for frame in range(86):
+        normal_count = len(frames) // 2
+        for frame in range(normal_count):
             bounds = []
-            for index in (frame, 86+frame):
+            for index in (frame, normal_count+frame):
                 glyphs = [(half, font["glyf"][font.getBestCmap()[code]])
                           for code, cells, half, pose in layout if cells == 3 and pose == index]
                 glyphs = [(half, glyph) for half, glyph in glyphs if glyph.numberOfContours]
@@ -307,7 +345,7 @@ class CustomFontBuildTests(unittest.TestCase):
     def test_single_face_derives_family_and_supports_unicode_override(self):
         output = self.root / "single face"
         self.build(output, "--base-font", self.sources / "Regular.ttf")
-        self.assertEqual((output / "font-family.txt").read_text(), "Test Mono RunCat v7\n")
+        self.assertEqual((output / "font-family.txt").read_text(), "Test Mono RunCat v10\n")
         self.build(output, "--base-font", self.sources / "Regular.ttf", "--family", "猫 Mono RunCat")
         font = TTFont(output / "RunCat-Regular.ttf")
         self.assertEqual(font["name"].getDebugName(1), "猫 Mono RunCat")
@@ -382,6 +420,165 @@ class CustomFontBuildTests(unittest.TestCase):
                     self.assertEqual(record.BaseGlyph, "ascii65")
                     self.assertEqual(record.Paint.Glyph, "ascii66")
                     self.assertEqual(record.Paint.Paint.PaletteIndex, 1)
+
+    def test_tabby_layers_fit_cells_without_changing_fallback_or_text(self):
+        output = self.root / "tabby"
+        self.build(output, "--base-font", self.sources / "Regular.ttf", "--fur", "tabby")
+        font = TTFont(output / "RunCat-Regular.ttf")
+        mono = TTFont(self.output / "RunCat-Regular.ttf")
+        self.assertEqual(font["name"].getDebugName(1), "Test Mono RunCat Tabby v1")
+        self.assertEqual(font["COLR"].version, 0)
+        self.assertEqual(font["CPAL"].numPaletteEntries, len(tabby_cat.PALETTE))
+        for table in ("hhea", "OS/2"):
+            self.assertEqual(font.getTableData(table), mono.getTableData(table))
+        for name in mono.getGlyphOrder():
+            self.assertEqual(font["glyf"][name].compile(font["glyf"]),
+                             mono["glyf"][name].compile(mono["glyf"]))
+            self.assertEqual(font["hmtx"][name], mono["hmtx"][name])
+        _, layout, _ = pet_cats.poses("tabby")
+        for code, cells, _, _ in layout:
+            name = font.getBestCmap()[code]
+            for layer in font["COLR"].ColorLayers.get(name, []):
+                glyph = font["glyf"][layer.name]
+                self.assertGreaterEqual(glyph.xMin, 0)
+                self.assertLessEqual(glyph.xMax, 1234)
+                self.assertGreaterEqual(glyph.yMin, -500 if cells == 4 else 0)
+                self.assertLessEqual(glyph.yMax, 1900)
+                self.assertLess(layer.colorID, len(tabby_cat.PALETTE))
+        before = (output / "RunCat-Regular.ttf").read_bytes()
+        self.build(output, "--base-font", self.sources / "Regular.ttf", "--fur", "tabby")
+        self.assertEqual(before, (output / "RunCat-Regular.ttf").read_bytes())
+
+    def test_tabby_appends_to_existing_colr_v0_and_v1_and_all_palettes(self):
+        for version in (0, 1):
+            with self.subTest(version=version):
+                font = TTFont(self.sources / "Regular.ttf")
+                font["CPAL"] = buildCPAL([[(1, 0, 0, 1)], [(0, 1, 0, 1)]],
+                                          paletteEntryLabels=["Existing"], nameTable=font["name"])
+                paint = [("ascii66", 0)] if version == 0 else {
+                    "Format": 10, "Glyph": "ascii66",
+                    "Paint": {"Format": 2, "PaletteIndex": 0, "Alpha": 1.0}}
+                font["COLR"] = buildCOLR({"ascii65": paint}, version=version,
+                                        glyphMap=font.getReverseGlyphMap())
+                source = self.root / f"tabby-source-v{version}.ttf"
+                font.save(source)
+                output = self.root / f"tabby-color-v{version}"
+                self.build(output, "--base-font", source, "--fur", "tabby")
+                updated = TTFont(output / "RunCat-Regular.ttf")
+                self.assertEqual(updated["COLR"].version, version)
+                self.assertEqual(updated["CPAL"].numPaletteEntries, 1 + len(tabby_cat.PALETTE))
+                self.assertEqual(updated["CPAL"].paletteEntryLabels[:1], font["CPAL"].paletteEntryLabels)
+                for original, palette in zip(font["CPAL"].palettes, updated["CPAL"].palettes):
+                    self.assertEqual(palette[:1], original)
+                    self.assertEqual([(c.red, c.green, c.blue, c.alpha) for c in palette[1:]],
+                                     list(tabby_cat.PALETTE))
+                if version == 0:
+                    layer = updated["COLR"].ColorLayers["ascii65"][0]
+                    self.assertEqual((layer.name, layer.colorID), ("ascii66", 0))
+                else:
+                    record = updated["COLR"].table.BaseGlyphList.BaseGlyphPaintRecord[0]
+                    self.assertEqual((record.BaseGlyph, record.Paint.Glyph,
+                                      record.Paint.Paint.PaletteIndex), ("ascii65", "ascii66", 0))
+
+    def test_other_coats_build_with_safe_layers_and_unchanged_text(self):
+        mono = TTFont(self.output / "RunCat-Regular.ttf")
+        for skin in cat_coats.CHOICES[1:]:
+            with self.subTest(skin=skin):
+                output = self.root / skin
+                self.build(output, "--base-font", self.sources / "Regular.ttf", "--fur", skin)
+                font = TTFont(output / "RunCat-Regular.ttf")
+                coat = cat_coats.get(skin)
+                self.assertEqual(font["name"].getDebugName(1), f"Test Mono RunCat {coat.suffix} v1")
+                self.assertEqual(font["CPAL"].numPaletteEntries, len(coat.palette))
+                self.assertEqual([(c.red, c.green, c.blue, c.alpha) for c in font["CPAL"].palettes[0]],
+                                 list(coat.palette))
+                self.assertEqual(font.getBestCmap(), mono.getBestCmap())
+                self.assertLess(len(font.getGlyphOrder()), 65536)
+                for name in mono.getGlyphOrder():
+                    self.assertEqual(font["hmtx"][name], mono["hmtx"][name])
+                    self.assertEqual(font["glyf"][name].compile(font["glyf"]),
+                                     mono["glyf"][name].compile(mono["glyf"]))
+                _, layout, _ = pet_cats.poses(skin)
+                for code, cells, _, _ in layout:
+                    name = font.getBestCmap()[code]
+                    for layer in font["COLR"].ColorLayers.get(name, []):
+                        self.assertLess(layer.colorID, len(coat.palette))
+                        glyph = font["glyf"][layer.name]
+                        self.assertGreaterEqual(glyph.xMin, 0)
+                        self.assertLessEqual(glyph.xMax, 1234)
+                        self.assertGreaterEqual(glyph.yMin, -500 if cells == 4 else 0)
+                        self.assertLessEqual(glyph.yMax, 1900)
+
+
+class CoatArtworkTests(unittest.TestCase):
+    def test_approved_brown_tabby_pixels_are_unchanged(self):
+        digest = hashlib.sha256()
+        for frame in pet_cats.pixel_frames("tabby"):
+            for row in frame["pixels"]:
+                digest.update(bytes(component for pixel in row for component in pixel))
+        self.assertEqual(digest.hexdigest(), "ae4bd77fa45a4a2bfd2395260c944f7c76156eaeff9f2a868c205b8883bc0877")
+
+    def test_every_coat_covers_all_poses_without_spilling_or_losing_pixels(self):
+        mono, layout, bounds = pet_cats.poses()
+        for skin in cat_coats.CHOICES:
+            with self.subTest(skin=skin):
+                frames, colored_layout, colored_bounds = pet_cats.poses(skin)
+                self.assertEqual((len(frames), colored_layout, colored_bounds), (296, layout, bounds))
+                coat = cat_coats.get(skin)
+                for frame, fallback in zip(frames, mono):
+                    self.assertEqual(frame["mono"], fallback["mono"])
+                    for index, contours in frame["layers"]:
+                        self.assertLess(index, len(coat.palette))
+                        for contour in contours:
+                            for x, y in contour:
+                                self.assertTrue(bounds[0] <= x <= bounds[1])
+                                self.assertTrue(bounds[2] <= y <= bounds[3])
+                for raw in pet_cats.pixel_frames(skin):
+                    colors = {p for row in raw["pixels"] for p in row}
+                    self.assertTrue(colors <= {*coat.palette, cat_coats.CLEAR}, (skin, raw["action"]))
+                    self.assertTrue(any(p[3] for row in raw["pixels"] for p in row))
+
+    def test_tabby_variants_keep_the_same_markings_and_silhouette(self):
+        brown = pet_cats.pixel_frames("tabby")
+        for skin in ("orange-tabby", "silver-tabby"):
+            mapping = dict(zip(tabby_cat.PALETTE, cat_coats.get(skin).palette))
+            mapping[tabby_cat.CLEAR] = tabby_cat.CLEAR
+            for source, colored in zip(brown, pet_cats.pixel_frames(skin)):
+                self.assertEqual([[mapping[p] for p in row] for row in source["pixels"]], colored["pixels"])
+
+    def test_source_landmarks_cover_every_native_pose(self):
+        for _, action, count, mode in pet_cats.animations():
+            if mode == "spin" or mode.startswith("wall-"):
+                continue
+            for frame in range(1 if mode == "breathing" else int(count)):
+                region = cat_coats.REGIONS[action, frame]
+                self.assertNotEqual(region.hip, region.shoulder)
+                self.assertGreater(region.radius, 0)
+                for point in (region.eye, region.hip, region.shoulder, *region.paws):
+                    self.assertTrue(all(0 <= value < 50 for value in point))
+
+
+class TabbyArtworkTests(unittest.TestCase):
+    def test_every_pose_uses_one_palette_and_stays_in_the_existing_row(self):
+        frames, layout, bounds = pet_cats.poses("tabby")
+        mono, mono_layout, mono_bounds = pet_cats.poses()
+        self.assertEqual((layout, bounds), (mono_layout, mono_bounds))
+        self.assertEqual(len(frames), 296)
+        for colored, fallback in zip(frames, mono):
+            self.assertEqual(colored["mono"], fallback["mono"])
+            for _, contours in colored["layers"]:
+                for contour in contours:
+                    for x, y in contour:
+                        self.assertGreaterEqual(x, bounds[0])
+                        self.assertLessEqual(x, bounds[1])
+                        self.assertGreaterEqual(y, bounds[2])
+                        self.assertLessEqual(y, bounds[3])
+        palette = {*tabby_cat.PALETTE, tabby_cat.CLEAR}
+        for frame in pet_cats.pixel_frames("tabby"):
+            colors = {pixel for row in frame["pixels"] for pixel in row}
+            self.assertTrue(colors <= palette, frame["action"])
+            self.assertIn(tabby_cat.STRIPE, colors, frame["action"])
+            self.assertIn(tabby_cat.FUR, colors, frame["action"])
 
 
 if __name__ == "__main__":

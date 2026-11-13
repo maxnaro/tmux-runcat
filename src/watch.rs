@@ -10,7 +10,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 const POLL: Duration = Duration::from_millis(50);
-const FORMAT: &str = "#{client_name}\t#{session_id}\t#{TMUX_RUNCAT_KEYS}\t#{@runcat-idle}\t#{@runcat-min-fps}\t#{@runcat-max-fps}\t#{@runcat-size}\t#{@runcat-skin}\t#{@runcat-spin-chance}";
+const FORMAT: &str = "#{client_name}\t#{session_id}\t#{TMUX_RUNCAT_KEYS}\t#{@runcat-idle}\t#{@runcat-min-fps}\t#{@runcat-max-fps}\t#{@runcat-size}\t#{@runcat-skin}\t#{@runcat-spin-chance}\t#{@runcat-wall-chance}\t#{@runcat-wall-debug}";
 
 struct Session {
     count: u64,
@@ -36,10 +36,10 @@ fn parse_clients(lines: impl Iterator<Item = String>) -> HashMap<String, Session
     let mut sessions: HashMap<String, Session> = HashMap::new();
     for line in lines {
         let fields: Vec<_> = line.split('\t').collect();
-        if fields.len() != 12 {
+        if fields.len() != 14 {
             continue;
         }
-        let Ok(pid) = fields[9].parse::<u32>() else {
+        let Ok(pid) = fields[11].parse::<u32>() else {
             continue;
         };
         let session = sessions
@@ -47,15 +47,17 @@ fn parse_clients(lines: impl Iterator<Item = String>) -> HashMap<String, Session
             .or_insert_with(|| Session {
                 count: fields[2].parse().unwrap_or(0),
                 settings: Settings::parse(fields[3], fields[4], fields[5], fields[6], fields[7])
-                    .with_spin_chance(fields[8]),
+                    .with_spin_chance(fields[8])
+                    .with_wall_chance(fields[9])
+                    .with_wall_debug(fields[10]),
                 clients: Vec::new(),
-                color: fields[11].to_owned(),
+                color: fields[13].to_owned(),
             });
         if !session.clients.iter().any(|client| client.pid == pid) {
             session.clients.push(Client {
                 name: fields[0].to_owned(),
                 pid,
-                room: fields[10].parse().unwrap_or(-1),
+                room: fields[12].parse().unwrap_or(-1),
             });
         }
     }
@@ -200,7 +202,7 @@ pub fn run(socket: &OsStr, pid: &OsStr, generation: &str) -> io::Result<()> {
         let now = start.elapsed().as_secs_f64();
         let mut next_update = now + POLL.as_secs_f64();
         let mut update = Vec::new();
-        for (session, activity) in sessions {
+        for (session, mut activity) in sessions {
             let animation = animations
                 .entry(session.clone())
                 .or_insert_with(|| Animation::new(activity.count, now));
@@ -215,28 +217,28 @@ pub fn run(socket: &OsStr, pid: &OsStr, generation: &str) -> io::Result<()> {
                 publish_environment(&mut update, &session, "@runcat-frame", pose);
                 changed = true;
             }
-            if previous.is_none_or(|last| last.1 != animation.state()) {
-                publish_environment(
-                    &mut update,
-                    &session,
-                    "@runcat-state",
-                    animation.state().to_owned(),
-                );
-                changed = true;
-            }
+            let mut display_state = animation.state();
             if roaming {
+                activity.clients.sort_by_key(|client| client.pid);
                 for client in &activity.clients {
                     let view = views.entry(client.pid).or_insert_with(|| View {
                         session: session.clone(),
                         ..View::default()
                     });
-                    let (position, left) = view.patrol.update(animation.travel(), client.room);
-                    let lane = crate::track::render(
+                    let frame = view.patrol.update(
+                        animation.travel(),
                         client.room,
-                        position,
-                        &animation.facing(left),
-                        &activity.color,
+                        now,
+                        animation.state(),
+                        activity.settings,
+                        animation.pressed(),
                     );
+                    if let Some(state) = frame.state {
+                        display_state = state;
+                    }
+                    let pose = frame.pose.unwrap_or_else(|| animation.facing(frame.left));
+                    let lane =
+                        crate::track::render(client.room, frame.position, &pose, &activity.color);
                     if view.published.as_ref() != Some(&lane) {
                         publish_environment(
                             &mut update,
@@ -249,6 +251,15 @@ pub fn run(socket: &OsStr, pid: &OsStr, generation: &str) -> io::Result<()> {
                     }
                 }
             }
+            if previous.is_none_or(|last| last.1 != display_state) {
+                publish_environment(
+                    &mut update,
+                    &session,
+                    "@runcat-state",
+                    display_state.to_owned(),
+                );
+                changed = true;
+            }
             if changed {
                 for client in &activity.clients {
                     update.extend([
@@ -260,7 +271,7 @@ pub fn run(socket: &OsStr, pid: &OsStr, generation: &str) -> io::Result<()> {
                     ]);
                 }
             }
-            published.insert(session, snapshot);
+            published.insert(session, (snapshot.0, display_state));
         }
         if !update.is_empty() && !tmux.output(update)?.status.success() {
             published.clear();
@@ -284,9 +295,9 @@ mod tests {
     fn clients_are_grouped_by_session_with_independent_counts() {
         let sessions = parse_clients(
             [
-                "/dev/pts/1\t$1\t4\t2\t3\t12\tmedium\tclassic\t0\t101\t80\tinherit",
-                "/dev/pts/2\t$1\t4\t2\t3\t12\tmedium\tclassic\t0\t102\t40\tinherit",
-                "/dev/pts/3\t$2\t9\t1\t4\t8\tlarge\tpet-cats\t15\t103\t90\tcyan",
+                "/dev/pts/1\t$1\t4\t2\t3\t12\tmedium\tclassic\t0\t35\toff\t101\t80\tinherit",
+                "/dev/pts/2\t$1\t4\t2\t3\t12\tmedium\tclassic\t0\t35\toff\t102\t40\tinherit",
+                "/dev/pts/3\t$2\t9\t1\t4\t8\tlarge\tpet-cats\t15\t75\ton\t103\t90\tcyan",
                 "invalid",
             ]
             .into_iter()
@@ -307,5 +318,7 @@ mod tests {
             sessions["$2"].settings.size,
             crate::animation::CatSize::Large
         );
+        assert_eq!(sessions["$2"].settings.wall_chance, 75.0);
+        assert!(sessions["$2"].settings.wall_debug);
     }
 }

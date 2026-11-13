@@ -41,4 +41,3 @@ bash tmux/.config/tmux/plugins/tmux-runcat/fonts/setup.sh
 
 Commit plugin changes in this repository first, then update its pointer in the
 parent dotfiles repository. Rebuild the executable after updating the plugin.
-

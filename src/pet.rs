@@ -6,6 +6,8 @@ const BASE: u32 = 0xf700;
 const XLARGE_BASE: u32 = 0xe400;
 const SPIN_BASE: u32 = 0x100000;
 const MIRROR_BASE: u32 = 0x101000;
+const WALL_BASE: u32 = 0x102000;
+const WALL_MIRROR_BASE: u32 = 0x103000;
 const REST_ACTIONS: [&str; 6] = ["lick-paw", "idle", "itch", "lick-body", "meow", "sit"];
 
 #[derive(Clone, Copy)]
@@ -42,6 +44,7 @@ fn clip(name: &str) -> Clip {
 }
 
 pub fn pose(size: CatSize, action: &str, frame: u32) -> String {
+    let wall_first = clip("head-bump").first;
     let clip = clip(action);
     let frame = clip.first + frame % clip.frames;
     if action == "spin" {
@@ -49,6 +52,14 @@ pub fn pose(size: CatSize, action: &str, frame: u32) -> String {
         return (0..cells)
             .map(|half| {
                 char::from_u32(SPIN_BASE + (frame - clip.first) * 10 + offset + half).unwrap()
+            })
+            .collect();
+    }
+    if matches!(action, "head-bump" | "wall-scratch" | "parkour") {
+        let (cells, offset) = size_layout(size);
+        return (0..cells)
+            .map(|half| {
+                char::from_u32(WALL_BASE + (frame - wall_first) * 10 + offset + half).unwrap()
             })
             .collect();
     }
@@ -82,6 +93,8 @@ pub fn mirror(pose: &str) -> String {
     pose.chars()
         .map(|character| {
             let code = character as u32;
+            let wall_first = clip("head-bump").first;
+            let wall_frames = clip("parkour").first + clip("parkour").frames - wall_first;
             let (frame, offset) = if (BASE..BASE + clip("spin").first * 6).contains(&code) {
                 ((code - BASE) / 6, (code - BASE) % 6)
             } else if (XLARGE_BASE..XLARGE_BASE + clip("spin").first * 4).contains(&code) {
@@ -91,10 +104,19 @@ pub fn mirror(pose: &str) -> String {
                     clip("spin").first + (code - SPIN_BASE) / 10,
                     (code - SPIN_BASE) % 10,
                 )
+            } else if (WALL_BASE..WALL_BASE + wall_frames * 10).contains(&code) {
+                (
+                    wall_first + (code - WALL_BASE) / 10,
+                    (code - WALL_BASE) % 10,
+                )
             } else {
                 return character;
             };
-            char::from_u32(MIRROR_BASE + frame * 10 + offset).unwrap()
+            if frame < wall_first {
+                char::from_u32(MIRROR_BASE + frame * 10 + offset).unwrap()
+            } else {
+                char::from_u32(WALL_MIRROR_BASE + (frame - wall_first) * 10 + offset).unwrap()
+            }
         })
         .collect()
 }
@@ -464,6 +486,9 @@ mod tests {
             "lick-body",
             "stretch",
             "spin",
+            "head-bump",
+            "wall-scratch",
+            "parkour",
         ] {
             let clip = clip(name);
             for frame in 0..clip.frames {
@@ -477,6 +502,8 @@ mod tests {
                     assert_eq!(text.chars().count(), width);
                     let range = if name == "spin" {
                         0x100000..0x1000a0
+                    } else if matches!(name, "head-bump" | "wall-scratch" | "parkour") {
+                        0x102000..0x10226c
                     } else if size == CatSize::XLarge {
                         0xe400..0xe518
                     } else {
@@ -485,10 +512,16 @@ mod tests {
                     assert!(text.chars().all(|value| range.contains(&(value as u32))));
                     let mirrored = mirror(&text);
                     assert_eq!(mirrored.chars().count(), width);
+                    let mirrored_range = if matches!(name, "head-bump" | "wall-scratch" | "parkour")
+                    {
+                        0x103000..0x10326c
+                    } else {
+                        0x101000..0x10135c
+                    };
                     assert!(
                         mirrored
                             .chars()
-                            .all(|value| (0x101000..0x10135c).contains(&(value as u32)))
+                            .all(|value| mirrored_range.contains(&(value as u32)))
                     );
                 }
             }

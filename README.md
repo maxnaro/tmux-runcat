@@ -33,9 +33,11 @@ cargo build --release --locked --offline
 bash fonts/setup.sh
 ```
 
-Select **JetBrainsMono RunCat v7** in your terminal. WSL setup selects it in
+Select **JetBrainsMono RunCat v10** in your terminal. WSL setup selects it in
 stable Windows Terminal automatically. Build and font sources are bundled;
 no network is needed after cloning.
+Optional patterned coats can be built with `bash fonts/setup.sh --fur tuxedo`;
+see [color coats](fonts/README.md#color-coats) for the other choices.
 
 Add to your tmux configuration, loading the plugin after your status settings:
 
@@ -50,8 +52,8 @@ The default is a stationary, two-cell classic cat that sleeps after two idle sec
 ## Documentation
 
 - [Installation](doc/installation.md): TPM, updates, custom sockets, and dotfiles submodules.
-- [Configuration](doc/configuration.md): skins, sizes, colours, roaming, spinning, and input behaviour.
-- [Font setup](fonts/README.md): Linux, WSL, custom fonts, and backups.
+- [Configuration](doc/configuration.md): skins, sizes, colours, roaming, spinning, wall reactions, and input behaviour.
+- [Font setup](fonts/README.md): Linux, WSL, custom fonts, color coats, and backups.
 - [Development](doc/development.md): builds, tests, CI, coverage, and artwork credits.
 
 The plugin counts activity without reading or storing key contents.
