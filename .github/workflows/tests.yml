@@ -67,12 +67,12 @@ jobs:
         id: coverage-tool
         with:
           path: ${{ runner.temp }}/ci-tools/llvm-cov
-          key: llvm-cov-${{ runner.os }}-${{ runner.arch }}-${{ steps.runtime.outputs.image }}-${{ steps.compiler.outputs.identity }}-0.6.21
+          key: llvm-cov-${{ runner.os }}-${{ runner.arch }}-${{ steps.runtime.outputs.image }}-${{ steps.compiler.outputs.identity }}-0.9.2
       - if: matrix.rust == 'stable' && steps.coverage-tool.outputs.cache-hit != 'true'
-        run: cargo install cargo-llvm-cov --version 0.6.21 --locked --root "$RUNNER_TEMP/ci-tools/llvm-cov"
+        run: cargo install cargo-llvm-cov --version 0.9.2 --locked --root "$RUNNER_TEMP/ci-tools/llvm-cov"
       - if: matrix.rust == 'stable'
         run: |
-          "$RUNNER_TEMP/ci-tools/llvm-cov/bin/cargo-llvm-cov" llvm-cov --version | grep -F "0.6.21"
+          "$RUNNER_TEMP/ci-tools/llvm-cov/bin/cargo-llvm-cov" llvm-cov --version | grep -F "0.9.2"
           echo "$RUNNER_TEMP/ci-tools/llvm-cov/bin" >> "$GITHUB_PATH"
       - if: matrix.rust == 'stable'
         run: |
